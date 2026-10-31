@@ -75,7 +75,7 @@ function renderBadge() {
   const st = S.ai.state;
   el.className = 'ai-badge ' + st;
   const local = S.ai.provider === 'local';
-  el.innerHTML = st === 'ready' ? (local ? `<i></i>${esc(CFG.llm?.label || '사내 LLM')} 연결됨${S.ai.model ? ' · ' + esc(S.ai.model) : ''}` : '<i></i>AI 연결됨')
+  el.innerHTML = st === 'ready' ? (local && S.ai.fallback ? `<i></i>Claude 크레딧 부족 · ${esc(S.ai.fallbackModel || '대체 모델')}로 분석` : local ? `<i></i>${esc(CFG.llm?.label || '사내 LLM')} 연결됨${S.ai.model ? ' · ' + esc(S.ai.model) : ''}` : '<i></i>AI 연결됨')
     : st === 'checking' ? '<i></i>AI 연결 확인 중'
     : st === 'denied' ? '<i></i>AI 사용 안 함 · 예시 모드'
     : st === 'down' ? `<i></i>${esc(CFG.llm?.label || '사내 LLM')} 연결 안 됨 · 예시 모드`
@@ -510,6 +510,7 @@ async function askJSON(prompt, step) {
       onText: ({ text }) => { S.run.chars = text.length; rec.outChars = text.length; }
     });
     if (!rec.outChars) rec.outChars = S.run.chars || JSON.stringify(out).length;
+    if (S.ai.provider === 'local' && S.ai.fallback) rec.engine = `${S.ai.fallbackModel || '대체 모델'} (${S.ai.fallback})`;
     rec.ok = true;
     return out;
   } catch (e) { rec.error = errText(e); throw e; }
@@ -527,7 +528,15 @@ async function askLocal(prompt) {
   } catch (e) { throw e?.name === 'AbortError' ? { code: 'cancelled' } : { code: 'local_down' }; }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw { code: { 413: 'prompt_too_large', 504: 'local_timeout' }[res.status] || 'local_error', message: body.error };
-  if (body.model) S.ai.model = body.model;
+  if (body.fallback) {
+    // Claude 크레딧이 부족해 서버가 다른 모델(Gemini)로 대신 처리한 경우
+    if (!S.ai.fallback) toast(body.fallback);
+    S.ai.fallback = body.fallback; S.ai.fallbackModel = body.model || '';
+    renderBadge();
+  } else {
+    S.ai.fallback = '';
+    if (body.model) S.ai.model = body.model;
+  }
   const text = String(body.text || '');
   S.run.chars = text.length;
   if (!text.trim()) throw { code: 'empty_completion' };

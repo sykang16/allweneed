@@ -14,6 +14,8 @@
     REQAI_ACCESS_CODE         (선택) 심사용 접속 코드. 정하면 이 코드를 넣은 사람만 AI 분석 가능
     REQAI_LIMIT_PER_IP_HOUR   한 사람(IP)이 1시간에 부를 수 있는 AI 호출 수(기본 40, 분석 1회 = 2호출)
     REQAI_LIMIT_PER_DAY       하루 전체 AI 호출 수(기본 400)
+    GEMINI_API_KEY            (선택) Claude 크레딧이 부족할 때 대신 쓸 Gemini API 키
+    REQAI_FALLBACK_MODEL      대체 모델(기본 gemini-2.5-flash-lite)
 
 AI 연결 설정은 settings.json에서 합니다(사용자 매뉴얼 4장).
 - provider "openai"   : 사내 LLM(OpenAI 호환 API). 표준 라이브러리만 씀
@@ -68,6 +70,13 @@ DEFAULTS = {
         "refusal_fallback": True,
     },
     "assets": {"offline": False},
+    # Claude API 크레딧이 부족할 때 대신 쓰는 모델(Gemini API). 키가 있을 때만 동작합니다.
+    "fallback": {
+        "model": "gemini-2.5-flash-lite",
+        "api_key": "",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta",
+        "max_tokens": 32768,
+    },
 }
 
 SYSTEM_PROMPT = "당신은 요구사항 분석을 돕는 AI입니다. 사용자가 요청한 형식의 JSON 객체 하나만 답하세요. 설명, 머리말, 코드 울타리(```)를 붙이지 마세요."
@@ -105,6 +114,11 @@ def load_settings(path=None):
     # 웹 호스팅: 호스팅이 준 포트로 모든 주소에서 받고, 브라우저는 열지 않습니다.
     if os.environ.get("PORT"):
         cfg["server"].update(host="0.0.0.0", port=int(os.environ["PORT"]), open_browser=False)
+    fb = cfg["fallback"]
+    for env, key in [("GEMINI_API_KEY", "api_key"), ("GOOGLE_API_KEY", "api_key"), ("REQAI_FALLBACK_MODEL", "model"), ("REQAI_GEMINI_BASE_URL", "base_url")]:
+        if os.environ.get(env) and not (key == "api_key" and fb["api_key"] and env == "GOOGLE_API_KEY"):
+            fb[key] = os.environ[env]
+    fb["base_url"] = str(fb["base_url"]).rstrip("/")
     cfg["guard"] = {
         "access_code": os.environ.get("REQAI_ACCESS_CODE", ""),
         "per_ip_hour": int(os.environ.get("REQAI_LIMIT_PER_IP_HOUR", "40")),
@@ -133,9 +147,9 @@ def llm_label(cfg):
 class LLMError(Exception):
     """화면에 보여 줄 HTTP 상태와 문장을 담은 오류"""
 
-    def __init__(self, status, message):
+    def __init__(self, status, message, kind=""):
         super().__init__(message)
-        self.status, self.message = status, message
+        self.status, self.message, self.kind = status, message, kind
 
 
 def vendor_ready():
@@ -166,10 +180,69 @@ def http_json(cfg, url, payload=None, timeout=30):
         return json.loads(res.read().decode("utf-8"))
 
 
+# ───────── Claude 크레딧 부족 시 Gemini로 대신 처리 ─────────
+_credit_out = {"until": 0.0}   # 크레딧 부족을 확인한 뒤 이 시각까지는 Claude를 건너뜀
+CREDIT_RETRY_SEC = 600
+
+
+def fallback_ready(cfg):
+    return cfg["llm"]["provider"] == "anthropic" and bool(cfg["fallback"]["api_key"])
+
+
+def fallback_label(cfg):
+    m = cfg["fallback"]["model"]
+    return "Gemini 2.5 Flash-Lite" if m == "gemini-2.5-flash-lite" else m
+
+
+def call_gemini(cfg, prompt):
+    """Gemini API generateContent. JSON 응답 모드로 받습니다."""
+    fb = cfg["fallback"]
+    url = f"{fb['base_url']}/models/{fb['model']}:generateContent"
+    body = {
+        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {"responseMimeType": "application/json", "temperature": 0.2, "maxOutputTokens": int(fb["max_tokens"])},
+    }
+    req = urllib.request.Request(url, data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+                                 headers={"Content-Type": "application/json", "x-goog-api-key": fb["api_key"]}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=float(cfg["llm"]["timeout_sec"])) as res:
+            out = json.loads(res.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", "replace")[:200]
+        msg = {400: "Gemini가 요청을 거절했습니다", 401: "Gemini API 키가 맞지 않습니다", 403: "Gemini API 키가 맞지 않거나 권한이 없습니다",
+               404: "Gemini 모델 이름이 맞지 않습니다", 429: "Gemini 사용 한도에 걸렸습니다"}.get(e.code, f"Gemini 오류(HTTP {e.code})")
+        if "api key not valid" in detail.lower() or "api_key_invalid" in detail.lower():
+            msg, detail = "Gemini API 키가 맞지 않습니다(GEMINI_API_KEY 확인)", ""
+        raise LLMError(429 if e.code == 429 else 502, f"Claude 크레딧이 부족해 Gemini로 대신 처리하려 했지만 실패했습니다: {msg}. {detail}".strip())
+    except Exception as e:
+        raise LLMError(502, f"Claude 크레딧이 부족해 Gemini로 대신 처리하려 했지만 연결하지 못했습니다: {reason(e)}")
+    cand = (out.get("candidates") or [{}])[0]
+    if cand.get("finishReason") == "MAX_TOKENS":
+        raise LLMError(502, "Gemini 응답이 길어 중간에 끊겼습니다.")
+    text = "".join(p.get("text", "") for p in (cand.get("content") or {}).get("parts", []) if not p.get("thought"))
+    if not text.strip():
+        raise LLMError(502, f"Gemini가 빈 답을 보냈습니다({cand.get('finishReason') or '이유 불명'}).")
+    u = out.get("usageMetadata") or {}
+    log(f"  Gemini 사용량: 입력 {u.get('promptTokenCount', 0):,} · 출력 {u.get('candidatesTokenCount', 0):,} 토큰")
+    return text, out.get("modelVersion") or fb["model"]
+
+
 def ask(cfg, prompt, tier="default", want_json=True):
-    if cfg["llm"]["provider"] == "anthropic":
-        return call_claude(cfg, prompt, tier)
-    return call_llm(cfg, prompt, tier, want_json)
+    """(답 글자, 모델 이름, 대체 안내) — 대체 안내는 Gemini로 대신 처리했을 때만 채웁니다."""
+    if cfg["llm"]["provider"] != "anthropic":
+        return (*call_llm(cfg, prompt, tier, want_json), "")
+    note = f"Claude 크레딧이 부족해 {fallback_label(cfg)}로 대신 처리했습니다."
+    if fallback_ready(cfg) and time.time() < _credit_out["until"]:
+        return (*call_gemini(cfg, prompt), note)
+    try:
+        return (*call_claude(cfg, prompt, tier), "")
+    except LLMError as e:
+        if e.kind != "credit" or not fallback_ready(cfg):
+            raise
+        _credit_out["until"] = time.time() + CREDIT_RETRY_SEC
+        log(f"  Claude 크레딧 부족 → {CREDIT_RETRY_SEC // 60}분 동안 {fallback_label(cfg)}로 대신 처리")
+        return (*call_gemini(cfg, prompt), note)
 
 
 def call_llm(cfg, prompt, tier="default", want_json=True):
@@ -221,6 +294,10 @@ def claude_client(cfg):
 
 def claude_error(anthropic, e):
     """SDK 오류를 화면용 상태·문장으로 바꿉니다(구체적인 것부터)."""
+    if isinstance(e, anthropic.APIStatusError) and (e.status_code == 402 or "credit balance" in str(e).lower() or "billing" in str(e).lower()):
+        err = LLMError(402, "Claude API 크레딧이 부족합니다. Anthropic Console에서 크레딧을 충전하세요.")
+        err.kind = "credit"
+        return err
     if isinstance(e, anthropic.AuthenticationError):
         return LLMError(401, "Claude API 키가 맞지 않습니다. settings.json의 api_key나 환경변수 ANTHROPIC_API_KEY를 확인하세요.")
     if isinstance(e, anthropic.PermissionDeniedError):
@@ -417,7 +494,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(blocked[0], {"error": blocked[1]})
         t0 = time.time()
         try:
-            text, model = ask(cfg, prompt, req.get("tier", "default"), bool(req.get("json", True)))
+            text, model, fallback = ask(cfg, prompt, req.get("tier", "default"), bool(req.get("json", True)))
         except LLMError as e:
             log(f"LLM 오류 {e.status}: {e.message} ({time.time() - t0:.1f}초)")
             return self.send(e.status, {"error": e.message})
@@ -435,7 +512,7 @@ class Handler(BaseHTTPRequestHandler):
             log(f"LLM 호출 실패: {r} ({time.time() - t0:.1f}초)")
             return self.send(504 if "시간 초과" in r else 502, {"error": r})
         log(f"LLM 호출 {nbytes:,}B 보냄 → {len(text):,}자 받음, {time.time() - t0:.1f}초, 모델 {model}")
-        self.send(200, {"text": text, "model": model})
+        self.send(200, {"text": text, "model": model, "fallback": fallback})
 
 
 def check(cfg):
@@ -455,7 +532,9 @@ def check(cfg):
         return 1
     t0 = time.time()
     try:
-        text, model = ask(cfg, '다음 JSON을 그대로 답하세요: {"ok": true, "msg": "연결 성공"}')
+        text, model, fallback = ask(cfg, '다음 JSON을 그대로 답하세요: {"ok": true, "msg": "연결 성공"}')
+        if fallback:
+            print(f"   ※ {fallback}")
     except LLMError as e:
         print(f"2) 시험 호출: 실패 - {e.message}")
         return 1
@@ -505,6 +584,8 @@ def main():
     if llm_enabled(cfg):
         h = health(cfg)
         log(f"{llm_label(cfg)} 응답 확인" if h["ok"] else "경고: " + h["error"])
+        if cfg["llm"]["provider"] == "anthropic":
+            log(f"크레딧 부족 시 대체: {fallback_label(cfg) + ' (GEMINI_API_KEY 설정됨)' if fallback_ready(cfg) else '없음 (GEMINI_API_KEY 없음)'}")
     if cfg["server"]["open_browser"] and not args.no_browser:
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
     try:

@@ -44,6 +44,12 @@
     "refusal_fallback": true
   },
 
+  "fallback": {
+    "_안내": "provider가 anthropic일 때 Claude 크레딧이 부족하면 Gemini로 대신 처리합니다. api_key가 비어 있으면 쓰지 않습니다(환경변수 GEMINI_API_KEY도 가능).",
+    "model": "gemini-2.5-flash-lite",
+    "api_key": ""
+  },
+
   "assets": {
     "_offline": "폐쇄망이면 true. 외부 CDN·글꼴 대신 vendor 폴더의 라이브러리를 씁니다(fetch_vendor.py로 준비).",
     "offline": false
