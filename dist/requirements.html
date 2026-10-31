@@ -1830,6 +1830,7 @@ const S = {
   M: createMasker(),
   ai: { state: 'checking', provider: null, model: '', note: '', sample: null, downloads: null },
   trace: [], importLog: null,
+  accessCode: (() => { try { return sessionStorage.getItem('reqai.code') || ''; } catch { return ''; } })(),
   precise: false,
   result: null, history: [], resolved: new Set(),
   tab: 'req', reqFilter: '전체', openReq: null, editReq: null, editBuf: null, delArm: false,
@@ -2029,6 +2030,7 @@ ${s.text}`.includes(i.value))).length;
   if (ai === 'checking') note = '<p class="muted">AI 연결을 확인하고 있습니다…</p>';
   else if (ai !== 'ready' && !intact) note = `<div class="notice warn"><b>지금 화면에서는 AI를 쓸 수 없습니다.</b> ${ai === 'down' ? esc(S.ai.note) + ' settings.json의 llm 설정과 serve.py 실행 창의 메시지를 확인하세요.' : '이 페이지를 claude.ai에 로그인한 상태로 열거나, serve.py로 사내 LLM에 연결하면 내 자료를 분석할 수 있습니다.'} 예시 자료로 돌아가면 미리 분석한 결과로 모든 기능을 체험할 수 있습니다. <button class="btn ghost" data-act="sample">예시 자료 불러오기</button></div>`;
   else if (ai !== 'ready') note = '<p class="muted small">AI가 연결되지 않은 화면입니다. 예시 자료를 미리 분석해 둔 결과로 다음 단계를 모두 체험할 수 있습니다.</p>';
+  else if (S.ai.provider === 'local' && CFG.llm?.needCode) note = `<label class="fld code-fld"><span>심사용 접속 코드</span><input id="access-code" type="password" data-bind="code" value="${esc(S.accessCode)}" placeholder="안내받은 코드" autocomplete="off"></label><p class="muted small">AI 분석은 접속 코드를 넣은 경우에만 실행됩니다. 코드 없이도 '예시 분석 결과 불러오기'로 모든 기능을 체험할 수 있습니다.</p>`;
   else if (S.ai.provider === 'local') note = `<p class="muted small">분석은 ${esc(CFG.llm?.label || '사내 LLM')}(${esc(S.ai.model || '설정된 모델')})로 실행됩니다. 가린 내용만 serve.py를 거쳐 전송됩니다.${intact ? ' 예시 자료는 미리 분석한 결과를 바로 불러올 수도 있습니다.' : ''}</p>`;
   else note = `<p class="muted small">분석은 이 페이지를 연 사람의 Claude 계정으로 실행됩니다. 처음 실행할 때 사용 허용 여부를 묻습니다.${intact ? ' 예시 자료는 미리 분석한 결과를 바로 불러올 수도 있습니다.' : ''}</p>`;
   return `
@@ -2340,12 +2342,12 @@ async function askLocal(prompt) {
   let res;
   try {
     res = await fetch(CFG.llm.endpoint, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: S.run.ctl.signal,
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Access-Code': S.accessCode }, signal: S.run.ctl.signal,
       body: JSON.stringify({ prompt, tier: S.precise ? 'precise' : 'default', json: true })
     });
   } catch (e) { throw e?.name === 'AbortError' ? { code: 'cancelled' } : { code: 'local_down' }; }
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw { code: { 413: 'prompt_too_large', 429: 'rate_limited', 504: 'local_timeout' }[res.status] || 'local_error', message: body.error };
+  if (!res.ok) throw { code: { 413: 'prompt_too_large', 504: 'local_timeout' }[res.status] || 'local_error', message: body.error };
   if (body.model) S.ai.model = body.model;
   const text = String(body.text || '');
   S.run.chars = text.length;
@@ -2681,6 +2683,7 @@ document.addEventListener('input', e => {
     const c = $('#src-count'); if (c) c.textContent = `자료 ${S.sources.length}건 · ${fmtNum(S.sources.reduce((x, s) => x + s.text.length, 0))}자`;
   } else if (kind === 'meta') { S.meta[a] = el.value; lsSet(LS_META, { dept: S.meta.dept, author: S.meta.author, system: S.meta.system }); if (el.dataset.live) refreshPaper(); }
   else if (kind === 'req') S.editBuf[a] = el.value;
+  else if (kind === 'code') { S.accessCode = el.value.trim(); try { sessionStorage.setItem('reqai.code', S.accessCode); } catch { /* 저장 불가 */ } }
   else if (kind === 'apply') { S.apply[a] = el.value; const btns = $$('[data-act=applyprev],[data-act=applyrun]'); btns.forEach(x => { x.disabled = !S.apply.text.trim(); }); }
   else if (kind === 'tpl') { S.template[a][+f].label = el.value; lsSet(LS_TPL, S.template); refreshPaper(); }
 });

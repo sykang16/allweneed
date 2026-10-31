@@ -1,0 +1,25 @@
+# Render 웹 호스팅 설정(Blueprint). 사용자 매뉴얼 4.9 참고.
+# API 키와 접속 코드는 이 파일에 쓰지 말고 Render 화면에서 입력합니다(sync: false).
+services:
+  - type: web
+    name: allweneed
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python serve.py --no-browser
+    healthCheckPath: /config.js
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: REQAI_LLM_PROVIDER
+        value: anthropic
+      - key: REQAI_LLM_MODEL
+        value: claude-sonnet-5-5
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: REQAI_ACCESS_CODE
+        sync: false
+      - key: REQAI_LIMIT_PER_IP_HOUR
+        value: "40"
+      - key: REQAI_LIMIT_PER_DAY
+        value: "400"

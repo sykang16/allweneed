@@ -17,7 +17,7 @@
     "_api_key": "Claude API 키(sk-ant-로 시작) 또는 사내 LLM 키. 파일 대신 환경변수 ANTHROPIC_API_KEY(Claude) / REQAI_LLM_API_KEY에 넣어도 됩니다.",
     "api_key": "",
 
-    "_model": "모델 이름. anthropic은 비워 두면 claude-opus-5-5. 정밀 분석용 모델이 따로 있으면 model_precise에.",
+    "_model": "모델 이름. anthropic은 비워 두면 claude-sonnet-5-5. 정밀 분석용 모델이 따로 있으면 model_precise에.",
     "model": "",
     "model_precise": "",
 

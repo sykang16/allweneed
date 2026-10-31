@@ -7,6 +7,14 @@
     python serve.py --check    # settings.json의 사내 LLM 연결만 시험
     python serve.py --port 9000 --no-browser
 
+웹 호스팅(Render 등)에서는 설정 파일 대신 환경변수로 설정합니다(사용자 매뉴얼 4.9).
+    PORT                      호스팅이 정해 주는 포트(있으면 0.0.0.0:PORT로 열고 브라우저는 열지 않음)
+    REQAI_LLM_PROVIDER        anthropic 또는 openai
+    ANTHROPIC_API_KEY         Claude API 키
+    REQAI_ACCESS_CODE         (선택) 심사용 접속 코드. 정하면 이 코드를 넣은 사람만 AI 분석 가능
+    REQAI_LIMIT_PER_IP_HOUR   한 사람(IP)이 1시간에 부를 수 있는 AI 호출 수(기본 40, 분석 1회 = 2호출)
+    REQAI_LIMIT_PER_DAY       하루 전체 AI 호출 수(기본 400)
+
 AI 연결 설정은 settings.json에서 합니다(사용자 매뉴얼 4장).
 - provider "openai"   : 사내 LLM(OpenAI 호환 API). 표준 라이브러리만 씀
 - provider "anthropic": Claude API. anthropic 패키지 필요(pip install anthropic), 키는 settings.json 또는 환경변수 ANTHROPIC_API_KEY
@@ -18,6 +26,7 @@ OpenAI 호환 API가 아닌 사내 LLM이면 아래 call_llm() 함수 하나만 
 - 기본값으로 이 PC(127.0.0.1)에서만 접속됩니다.
 """
 import argparse
+import hmac
 import json
 import os
 import re
@@ -79,7 +88,8 @@ def load_settings(path=None):
     path = Path(path) if path else ROOT / "settings.json"
     if not path.exists():
         path = ROOT / "settings.example.json"
-        log("settings.json이 없어 settings.example.json으로 실행합니다. 사내 LLM을 쓰려면 복사해서 settings.json을 만드세요.")
+        if not os.environ.get("REQAI_LLM_PROVIDER"):
+            log("settings.json이 없어 settings.example.json으로 실행합니다. AI를 연결하려면 복사해서 settings.json을 만드세요.")
     raw = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
     cfg = json.loads(json.dumps(DEFAULTS))
     for sec, vals in raw.items():
@@ -88,14 +98,22 @@ def load_settings(path=None):
         cfg.setdefault(sec, {}).update({k: v for k, v in vals.items() if not k.startswith("_")})
     llm = cfg["llm"]
     # 환경변수가 있으면 파일보다 우선합니다(키를 파일에 두지 않을 때).
-    for env, key in [("REQAI_LLM_API_KEY", "api_key"), ("REQAI_LLM_BASE_URL", "base_url"), ("REQAI_LLM_MODEL", "model")]:
+    for env, key in [("REQAI_LLM_PROVIDER", "provider"), ("REQAI_LLM_API_KEY", "api_key"), ("REQAI_LLM_BASE_URL", "base_url"), ("REQAI_LLM_MODEL", "model")]:
         if os.environ.get(env):
             llm[key] = os.environ[env]
     llm["base_url"] = str(llm["base_url"]).rstrip("/")
+    # 웹 호스팅: 호스팅이 준 포트로 모든 주소에서 받고, 브라우저는 열지 않습니다.
+    if os.environ.get("PORT"):
+        cfg["server"].update(host="0.0.0.0", port=int(os.environ["PORT"]), open_browser=False)
+    cfg["guard"] = {
+        "access_code": os.environ.get("REQAI_ACCESS_CODE", ""),
+        "per_ip_hour": int(os.environ.get("REQAI_LIMIT_PER_IP_HOUR", "40")),
+        "per_day": int(os.environ.get("REQAI_LIMIT_PER_DAY", "400")),
+    }
     if llm["provider"] == "anthropic":
         # Claude API 기본값: 모델 Claude Opus 5.5, 긴 응답(전체 요구사항 JSON)을 위해 넉넉한 출력·입력 한도
         dflt = DEFAULTS["llm"]
-        llm["model"] = llm["model"] or "claude-opus-5-5"
+        llm["model"] = llm["model"] or "claude-sonnet-5-5"
         if llm["max_tokens"] == dflt["max_tokens"]:
             llm["max_tokens"] = 64000
         if llm["max_prompt_bytes"] == dflt["max_prompt_bytes"]:
@@ -256,7 +274,18 @@ def call_claude(cfg, prompt, tier="default"):
     return text, msg.model
 
 
+_health_cache = {"t": 0.0, "v": None}
+
+
 def health(cfg):
+    if _health_cache["v"] and _health_cache["v"]["ok"] and time.time() - _health_cache["t"] < 300:
+        return _health_cache["v"]
+    v = _health(cfg)
+    _health_cache.update(t=time.time(), v=v)
+    return v
+
+
+def _health(cfg):
     if not llm_enabled(cfg):
         return {"ok": False, "error": "settings.json에서 AI 연결이 꺼져 있습니다(provider: none)."}
     llm = cfg["llm"]
@@ -290,6 +319,31 @@ def reason(e):
     return str(e)[:300]
 
 
+# ───────── 사용 한도(웹 호스팅에서 API 비용 보호) ─────────
+_guard_lock = threading.Lock()
+_ip_calls = {}            # IP → 최근 1시간 호출 시각
+_day = {"date": "", "n": 0}
+
+
+def guard_check(cfg, ip):
+    """호출을 허용하면 None, 막으면 (상태, 문장)."""
+    g = cfg["guard"]
+    now = time.time()
+    today = time.strftime("%Y-%m-%d")
+    with _guard_lock:
+        if _day["date"] != today:
+            _day.update(date=today, n=0)
+        if _day["n"] >= g["per_day"]:
+            return 429, "오늘 사용할 수 있는 AI 분석 횟수를 모두 썼습니다. 내일 다시 시도하거나 예시 결과로 체험해 주세요."
+        recent = [t for t in _ip_calls.get(ip, []) if now - t < 3600]
+        if len(recent) >= g["per_ip_hour"]:
+            return 429, "AI 분석을 너무 자주 요청했습니다. 잠시 후(최대 1시간) 다시 시도해 주세요."
+        recent.append(now)
+        _ip_calls[ip] = recent
+        _day["n"] += 1
+    return None
+
+
 # ───────── 웹 서버 ─────────
 class Handler(BaseHTTPRequestHandler):
     cfg = None
@@ -321,7 +375,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/config.js":
             llm = cfg["llm"]
             conf = {
-                "llm": {"endpoint": "/api/llm", "health": "/api/health", "label": llm_label(cfg), "model": llm["model"], "effort": llm["effort"] if llm["provider"] == "anthropic" else "", "effortPrecise": llm["effort_precise"] if llm["provider"] == "anthropic" else "", "modelPrecise": llm["model_precise"], "maxPromptBytes": llm["max_prompt_bytes"]} if llm_enabled(cfg) else None,
+                "llm": {"endpoint": "/api/llm", "health": "/api/health", "label": llm_label(cfg), "needCode": bool(cfg["guard"]["access_code"]), "model": llm["model"], "effort": llm["effort"] if llm["provider"] == "anthropic" else "", "effortPrecise": llm["effort_precise"] if llm["provider"] == "anthropic" else "", "modelPrecise": llm["model_precise"], "maxPromptBytes": llm["max_prompt_bytes"]} if llm_enabled(cfg) else None,
                 "libBase": "/vendor/" if cfg["assets"]["offline"] else "",
             }
             return self.send(200, "window.REQAI_CONFIG = " + json.dumps(conf, ensure_ascii=False) + ";\n", "text/javascript; charset=utf-8")
@@ -340,6 +394,9 @@ class Handler(BaseHTTPRequestHandler):
         cfg = self.cfg
         if not llm_enabled(cfg):
             return self.send(503, {"error": "AI 연결이 꺼져 있습니다(settings.json의 provider)."})
+        code = cfg["guard"]["access_code"]
+        if code and not hmac.compare_digest(self.headers.get("X-Access-Code", "").encode(), code.encode()):
+            return self.send(401, {"error": "접속 코드가 맞지 않습니다. 안내받은 코드를 AI 분석 화면에 입력하세요.", "code": "access_code"})
         size = int(self.headers.get("Content-Length") or 0)
         if size > cfg["llm"]["max_prompt_bytes"] * 2 + 10000:
             return self.send(413, {"error": "자료가 너무 깁니다."})
@@ -351,6 +408,13 @@ class Handler(BaseHTTPRequestHandler):
         nbytes = len(prompt.encode("utf-8"))
         if nbytes > cfg["llm"]["max_prompt_bytes"]:
             return self.send(413, {"error": f"자료가 너무 깁니다({nbytes:,}B > {cfg['llm']['max_prompt_bytes']:,}B)."})
+        if not prompt.strip():
+            return self.send(400, {"error": "보낼 내용이 없습니다."})
+        # 실제로 AI를 부르는 요청만 한도에 셉니다(호스팅 앞단 프록시가 붙인 원래 IP 기준).
+        ip = (self.headers.get("X-Forwarded-For") or self.client_address[0]).split(",")[0].strip()
+        blocked = guard_check(cfg, ip)
+        if blocked:
+            return self.send(blocked[0], {"error": blocked[1]})
         t0 = time.time()
         try:
             text, model = ask(cfg, prompt, req.get("tier", "default"), bool(req.get("json", True)))
@@ -429,12 +493,14 @@ def main():
         sys.exit("dist/standalone.html이 없습니다. python build.py를 먼저 실행하세요.")
     if cfg["assets"]["offline"] and not vendor_ready():
         log("경고: assets.offline이 켜져 있는데 vendor 폴더에 라이브러리가 없습니다. PDF·Word·Excel 읽기와 Word·Excel 내려받기가 동작하지 않습니다(사용자 매뉴얼 3.3).")
-    if host not in ("127.0.0.1", "localhost"):
+    if host not in ("127.0.0.1", "localhost") and not os.environ.get("PORT"):
         log(f"주의: {host}로 열면 같은 망의 다른 PC도 이 서버와 사내 LLM을 쓸 수 있습니다. 공용 운영 전에는 정보보호 검토를 받으세요.")
     Handler.cfg = cfg
     httpd = ThreadingHTTPServer((host, port), Handler)
     url = f"http://{'127.0.0.1' if host in ('0.0.0.0', '') else host}:{port}"
     log(f"실행 중: {url}  (끝내려면 Ctrl+C)")
+    g = cfg["guard"]
+    log(f"사용 한도: IP당 1시간 {g['per_ip_hour']}회, 하루 {g['per_day']}회 / 접속 코드 {'사용' if g['access_code'] else '없음'}")
     log(f"AI: {llm_label(cfg) + ' ' + cfg['llm']['model'] + ('' if cfg['llm']['provider'] == 'anthropic' else ' @ ' + cfg['llm']['base_url']) if llm_enabled(cfg) else '꺼짐 (예시 모드)'} / 라이브러리: {'vendor 폴더' if cfg['assets']['offline'] else 'CDN(인터넷)'}")
     if llm_enabled(cfg):
         h = health(cfg)

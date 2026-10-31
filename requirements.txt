@@ -1,0 +1,2 @@
+# Claude API 연결(provider "anthropic")에만 필요합니다. 사내 LLM만 쓰면 설치하지 않아도 됩니다.
+anthropic>=0.77,<1
