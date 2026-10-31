@@ -33,7 +33,7 @@ python serve.py                          # http://127.0.0.1:8080 이 열림 (Win
 
 사내 LLM만 쓰면 추가 패키지 설치는 필요 없습니다(파이썬 표준 라이브러리만 사용). Claude API는 `pip install anthropic`이 필요합니다.
 
-**웹에 올려 URL로 쓰기**: 저장소의 `render.yaml`로 Render에 올리면 URL만으로 Claude API 분석까지 쓸 수 있습니다. API 키는 Render 환경변수에만 넣습니다(매뉴얼 4.9). 폐쇄망 설치, 사내 LLM 연결 방법, 문제 해결은 **[사용자 매뉴얼](docs/사용자매뉴얼.md)** 에 있습니다.
+**웹에 올려 URL로 쓰기**: 저장소의 `render.yaml`로 Render에 올리면 URL만으로 Claude API 분석까지 쓸 수 있습니다. API 키는 Render 환경변수에만 넣습니다(매뉴얼 4.9). Vercel은 `app.py`가 진입점입니다(매뉴얼 4.10). 폐쇄망 설치, 사내 LLM 연결 방법, 문제 해결은 **[사용자 매뉴얼](docs/사용자매뉴얼.md)** 에 있습니다.
 
 ## 폴더 구조
 
@@ -47,6 +47,7 @@ python serve.py                          # http://127.0.0.1:8080 이 열림 (Win
 ├─ fetch_vendor.py          폐쇄망 반입용 라이브러리 내려받기
 ├─ start.bat                Windows 실행
 ├─ render.yaml              웹 호스팅(Render) 설정
+├─ app.py                   Vercel용 진입점(serve.py의 처리를 WSGI 앱으로)
 ├─ requirements.txt         Claude API용 패키지(anthropic)
 └─ docs/사용자매뉴얼.md
 ```

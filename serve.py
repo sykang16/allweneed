@@ -422,6 +422,95 @@ def guard_check(cfg, ip):
 
 
 # ───────── 웹 서버 ─────────
+JSON = "application/json; charset=utf-8"
+TEXT = "text/plain; charset=utf-8"
+
+
+def route(cfg, method, path, header, read_body, client_ip):
+    """요청 하나를 처리해 (상태, 본문, 형식)을 돌려줍니다.
+    PC·Render의 내장 서버(Handler)와 Vercel의 WSGI 앱(app.py)이 함께 씁니다.
+    header(이름) → 값, read_body(크기) → bytes."""
+    path = path.split("?")[0]
+    if method == "GET":
+        # Vercel이 저장소의 index.html → dist/standalone.html을 정적 파일로 먼저 내줄 때도 같은 화면·설정이 나가게 합니다.
+        if path in ("/", "/index.html", "/dist/standalone.html"):
+            if not DIST.exists():
+                return 500, "dist/standalone.html이 없습니다. python build.py를 먼저 실행하세요.", TEXT
+            html = DIST.read_text(encoding="utf-8")
+            if cfg["assets"]["offline"]:  # 폐쇄망: 외부 글꼴 요청이 화면을 붙잡지 않도록 뺍니다.
+                html = re.sub(r'<link[^>]+fonts\.(googleapis|gstatic)\.com[^>]*>\s*', "", html)
+            return 200, html, "text/html; charset=utf-8"
+        if path in ("/config.js", "/dist/config.js"):
+            llm = cfg["llm"]
+            conf = {
+                "llm": {"endpoint": "/api/llm", "health": "/api/health", "label": llm_label(cfg), "needCode": bool(cfg["guard"]["access_code"]), "model": llm["model"], "effort": llm["effort"] if llm["provider"] == "anthropic" else "", "effortPrecise": llm["effort_precise"] if llm["provider"] == "anthropic" else "", "modelPrecise": llm["model_precise"], "maxPromptBytes": llm["max_prompt_bytes"]} if llm_enabled(cfg) else None,
+                "libBase": "/vendor/" if cfg["assets"]["offline"] else "",
+            }
+            return 200, "window.REQAI_CONFIG = " + json.dumps(conf, ensure_ascii=False) + ";\n", "text/javascript; charset=utf-8"
+        if path.startswith("/vendor/"):
+            name = path[len("/vendor/"):]
+            if name in VENDOR_FILES and (VENDOR / name).exists():
+                return 200, (VENDOR / name).read_bytes(), "text/javascript; charset=utf-8"
+            return 404, "vendor 파일이 없습니다. python fetch_vendor.py 참고", TEXT
+        if path == "/api/health":
+            return 200, health(cfg), JSON
+        return 404, "없는 주소입니다.", TEXT
+    if method != "POST" or path != "/api/llm":
+        return 404, {"error": "없는 주소입니다."}, JSON
+    if not llm_enabled(cfg):
+        return 503, {"error": "AI 연결이 꺼져 있습니다(settings.json의 provider)."}, JSON
+    code = cfg["guard"]["access_code"]
+    if code and not hmac.compare_digest((header("X-Access-Code") or "").encode(), code.encode()):
+        return 401, {"error": "접속 코드가 맞지 않습니다. 안내받은 코드를 AI 분석 화면에 입력하세요.", "code": "access_code"}, JSON
+    size = int(header("Content-Length") or 0)
+    if size > cfg["llm"]["max_prompt_bytes"] * 2 + 10000:
+        return 413, {"error": "자료가 너무 깁니다."}, JSON
+    try:
+        req = json.loads(read_body(size).decode("utf-8"))
+        prompt = str(req.get("prompt") or "")
+    except Exception:
+        return 400, {"error": "요청 형식이 잘못됐습니다."}, JSON
+    nbytes = len(prompt.encode("utf-8"))
+    if nbytes > cfg["llm"]["max_prompt_bytes"]:
+        return 413, {"error": f"자료가 너무 깁니다({nbytes:,}B > {cfg['llm']['max_prompt_bytes']:,}B)."}, JSON
+    if not prompt.strip():
+        return 400, {"error": "보낼 내용이 없습니다."}, JSON
+    # 실제로 AI를 부르는 요청만 한도에 셉니다(호스팅 앞단 프록시가 붙인 원래 IP 기준).
+    ip = (header("X-Forwarded-For") or client_ip or "").split(",")[0].strip()
+    blocked = guard_check(cfg, ip)
+    if blocked:
+        return blocked[0], {"error": blocked[1]}, JSON
+    t0 = time.time()
+    try:
+        text, model, fallback = ask(cfg, prompt, req.get("tier", "default"), bool(req.get("json", True)))
+    except LLMError as e:
+        log(f"LLM 오류 {e.status}: {e.message} ({time.time() - t0:.1f}초)")
+        return e.status, {"error": e.message}, JSON
+    except urllib.error.HTTPError as e:
+        detail = ""
+        try:
+            detail = e.read().decode("utf-8", "replace")[:300]
+        except Exception:
+            pass
+        log(f"LLM 오류 HTTP {e.code} ({time.time() - t0:.1f}초)")
+        return (429 if e.code == 429 else 502), {"error": f"HTTP {e.code} {detail}".strip()}, JSON
+    except Exception as e:
+        r = reason(e)
+        log(f"LLM 호출 실패: {r} ({time.time() - t0:.1f}초)")
+        return (504 if "시간 초과" in r else 502), {"error": r}, JSON
+    log(f"LLM 호출 {nbytes:,}B 보냄 → {len(text):,}자 받음, {time.time() - t0:.1f}초, 모델 {model}")
+    return 200, {"text": text, "model": model, "fallback": fallback}, JSON
+
+
+def encode_body(body):
+    if isinstance(body, bytes):
+        return body
+    return (body if isinstance(body, str) else json.dumps(body, ensure_ascii=False)).encode("utf-8")
+
+
+SECURITY_HEADERS = [("Cache-Control", "no-store"), ("X-Content-Type-Options", "nosniff")]
+
+
 class Handler(BaseHTTPRequestHandler):
     cfg = None
     server_version = "reqai"
@@ -429,90 +518,22 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):  # 기본 접속 로그는 끕니다(필요한 것만 직접 찍음).
         pass
 
-    def send(self, code, body, ctype="application/json; charset=utf-8"):
-        data = body if isinstance(body, bytes) else (json.dumps(body, ensure_ascii=False) if not isinstance(body, str) else body).encode("utf-8")
+    def respond(self, method):
+        code, body, ctype = route(self.cfg, method, self.path, self.headers.get, self.rfile.read, self.client_address[0])
+        data = encode_body(body)
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("X-Content-Type-Options", "nosniff")
+        for k, v in SECURITY_HEADERS:
+            self.send_header(k, v)
         self.end_headers()
         self.wfile.write(data)
 
     def do_GET(self):
-        path = self.path.split("?")[0]
-        cfg = self.cfg
-        if path in ("/", "/index.html"):
-            if not DIST.exists():
-                return self.send(500, "dist/standalone.html이 없습니다. python build.py를 먼저 실행하세요.", "text/plain; charset=utf-8")
-            html = DIST.read_text(encoding="utf-8")
-            if cfg["assets"]["offline"]:  # 폐쇄망: 외부 글꼴 요청이 화면을 붙잡지 않도록 뺍니다.
-                html = re.sub(r'<link[^>]+fonts\.(googleapis|gstatic)\.com[^>]*>\s*', "", html)
-            return self.send(200, html, "text/html; charset=utf-8")
-        if path == "/config.js":
-            llm = cfg["llm"]
-            conf = {
-                "llm": {"endpoint": "/api/llm", "health": "/api/health", "label": llm_label(cfg), "needCode": bool(cfg["guard"]["access_code"]), "model": llm["model"], "effort": llm["effort"] if llm["provider"] == "anthropic" else "", "effortPrecise": llm["effort_precise"] if llm["provider"] == "anthropic" else "", "modelPrecise": llm["model_precise"], "maxPromptBytes": llm["max_prompt_bytes"]} if llm_enabled(cfg) else None,
-                "libBase": "/vendor/" if cfg["assets"]["offline"] else "",
-            }
-            return self.send(200, "window.REQAI_CONFIG = " + json.dumps(conf, ensure_ascii=False) + ";\n", "text/javascript; charset=utf-8")
-        if path.startswith("/vendor/"):
-            name = path[len("/vendor/"):]
-            if name in VENDOR_FILES and (VENDOR / name).exists():
-                return self.send(200, (VENDOR / name).read_bytes(), "text/javascript; charset=utf-8")
-            return self.send(404, "vendor 파일이 없습니다. python fetch_vendor.py 참고", "text/plain; charset=utf-8")
-        if path == "/api/health":
-            return self.send(200, health(cfg))
-        self.send(404, "없는 주소입니다.", "text/plain; charset=utf-8")
+        self.respond("GET")
 
     def do_POST(self):
-        if self.path.split("?")[0] != "/api/llm":
-            return self.send(404, {"error": "없는 주소입니다."})
-        cfg = self.cfg
-        if not llm_enabled(cfg):
-            return self.send(503, {"error": "AI 연결이 꺼져 있습니다(settings.json의 provider)."})
-        code = cfg["guard"]["access_code"]
-        if code and not hmac.compare_digest(self.headers.get("X-Access-Code", "").encode(), code.encode()):
-            return self.send(401, {"error": "접속 코드가 맞지 않습니다. 안내받은 코드를 AI 분석 화면에 입력하세요.", "code": "access_code"})
-        size = int(self.headers.get("Content-Length") or 0)
-        if size > cfg["llm"]["max_prompt_bytes"] * 2 + 10000:
-            return self.send(413, {"error": "자료가 너무 깁니다."})
-        try:
-            req = json.loads(self.rfile.read(size).decode("utf-8"))
-            prompt = str(req.get("prompt") or "")
-        except Exception:
-            return self.send(400, {"error": "요청 형식이 잘못됐습니다."})
-        nbytes = len(prompt.encode("utf-8"))
-        if nbytes > cfg["llm"]["max_prompt_bytes"]:
-            return self.send(413, {"error": f"자료가 너무 깁니다({nbytes:,}B > {cfg['llm']['max_prompt_bytes']:,}B)."})
-        if not prompt.strip():
-            return self.send(400, {"error": "보낼 내용이 없습니다."})
-        # 실제로 AI를 부르는 요청만 한도에 셉니다(호스팅 앞단 프록시가 붙인 원래 IP 기준).
-        ip = (self.headers.get("X-Forwarded-For") or self.client_address[0]).split(",")[0].strip()
-        blocked = guard_check(cfg, ip)
-        if blocked:
-            return self.send(blocked[0], {"error": blocked[1]})
-        t0 = time.time()
-        try:
-            text, model, fallback = ask(cfg, prompt, req.get("tier", "default"), bool(req.get("json", True)))
-        except LLMError as e:
-            log(f"LLM 오류 {e.status}: {e.message} ({time.time() - t0:.1f}초)")
-            return self.send(e.status, {"error": e.message})
-        except urllib.error.HTTPError as e:
-            detail = ""
-            try:
-                detail = e.read().decode("utf-8", "replace")[:300]
-            except Exception:
-                pass
-            log(f"LLM 오류 HTTP {e.code} ({time.time() - t0:.1f}초)")
-            code = 429 if e.code == 429 else 502
-            return self.send(code, {"error": f"HTTP {e.code} {detail}".strip()})
-        except Exception as e:
-            r = reason(e)
-            log(f"LLM 호출 실패: {r} ({time.time() - t0:.1f}초)")
-            return self.send(504 if "시간 초과" in r else 502, {"error": r})
-        log(f"LLM 호출 {nbytes:,}B 보냄 → {len(text):,}자 받음, {time.time() - t0:.1f}초, 모델 {model}")
-        self.send(200, {"text": text, "model": model, "fallback": fallback})
+        self.respond("POST")
 
 
 def check(cfg):
