@@ -22,7 +22,8 @@ body = shell.replace("/*__SCRIPTS__*/", scripts)
     '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n'
     "<style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>\n"
     # serve.py가 settings.json을 바탕으로 만들어 주는 설정. 파일로 바로 열면 없어서 예시 모드로 동작합니다.
-    '<script src="config.js"></script>\n'
+    # 절대 경로: 정적 호스팅이 dist/standalone.html을 직접 내줘도 서버의 설정(/config.js)을 찾게 합니다.
+    '<script src="/config.js"></script>\n'
     "</head>\n<body>\n" + body + "\n</body>\n</html>\n",
     encoding="utf-8",
 )

@@ -124,6 +124,9 @@ def load_settings(path=None):
         "per_ip_hour": int(os.environ.get("REQAI_LIMIT_PER_IP_HOUR", "40")),
         "per_day": int(os.environ.get("REQAI_LIMIT_PER_DAY", "400")),
     }
+    # provider를 따로 정하지 않았어도 Claude API 키가 환경변수에 있으면 Claude API를 씁니다(호스팅 설정 실수 방지).
+    if llm["provider"] == "none" and os.environ.get("ANTHROPIC_API_KEY"):
+        llm["provider"] = "anthropic"
     if llm["provider"] == "anthropic":
         # Claude API 기본값: 모델 Claude Opus 5.5, 긴 응답(전체 요구사항 JSON)을 위해 넉넉한 출력·입력 한도
         dflt = DEFAULTS["llm"]
@@ -445,6 +448,8 @@ def route(cfg, method, path, header, read_body, client_ip):
             conf = {
                 "llm": {"endpoint": "/api/llm", "health": "/api/health", "label": llm_label(cfg), "needCode": bool(cfg["guard"]["access_code"]), "model": llm["model"], "effort": llm["effort"] if llm["provider"] == "anthropic" else "", "effortPrecise": llm["effort_precise"] if llm["provider"] == "anthropic" else "", "modelPrecise": llm["model_precise"], "maxPromptBytes": llm["max_prompt_bytes"]} if llm_enabled(cfg) else None,
                 "libBase": "/vendor/" if cfg["assets"]["offline"] else "",
+                # 서버에서 열었지만 AI가 꺼져 있을 때 화면에 이유를 보여 줍니다.
+                "llmOff": "" if llm_enabled(cfg) else ("서버에 ANTHROPIC_API_KEY(또는 REQAI_LLM_PROVIDER) 환경변수가 없습니다. 호스팅 설정에 넣고 다시 배포하세요." if os.environ.get("PORT") or os.environ.get("VERCEL") else "settings.json에서 AI 연결이 꺼져 있습니다(provider: none)."),
             }
             return 200, "window.REQAI_CONFIG = " + json.dumps(conf, ensure_ascii=False) + ";\n", "text/javascript; charset=utf-8"
         if path.startswith("/vendor/"):
