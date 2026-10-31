@@ -7,7 +7,9 @@
     python serve.py --check    # settings.json의 사내 LLM 연결만 시험
     python serve.py --port 9000 --no-browser
 
-사내 LLM 연결 설정은 settings.json에서 합니다(사용자 매뉴얼 4장).
+AI 연결 설정은 settings.json에서 합니다(사용자 매뉴얼 4장).
+- provider "openai"   : 사내 LLM(OpenAI 호환 API). 표준 라이브러리만 씀
+- provider "anthropic": Claude API. anthropic 패키지 필요(pip install anthropic), 키는 settings.json 또는 환경변수 ANTHROPIC_API_KEY
 OpenAI 호환 API가 아닌 사내 LLM이면 아래 call_llm() 함수 하나만 고치면 됩니다.
 
 보안 메모
@@ -51,6 +53,10 @@ DEFAULTS = {
         "ca_bundle": "",
         "use_system_proxy": False,
         "extra_headers": {},
+        # Claude API(provider "anthropic")에서만 씀
+        "effort": "high",
+        "effort_precise": "xhigh",
+        "refusal_fallback": True,
     },
     "assets": {"offline": False},
 }
@@ -86,11 +92,32 @@ def load_settings(path=None):
         if os.environ.get(env):
             llm[key] = os.environ[env]
     llm["base_url"] = str(llm["base_url"]).rstrip("/")
+    if llm["provider"] == "anthropic":
+        # Claude API 기본값: 모델 Claude Opus 5.5, 긴 응답(전체 요구사항 JSON)을 위해 넉넉한 출력·입력 한도
+        dflt = DEFAULTS["llm"]
+        llm["model"] = llm["model"] or "claude-opus-5-5"
+        if llm["max_tokens"] == dflt["max_tokens"]:
+            llm["max_tokens"] = 64000
+        if llm["max_prompt_bytes"] == dflt["max_prompt_bytes"]:
+            llm["max_prompt_bytes"] = 1500000
     return cfg
 
 
 def llm_enabled(cfg):
-    return cfg["llm"]["provider"] != "none" and bool(cfg["llm"]["base_url"])
+    p = cfg["llm"]["provider"]
+    return p == "anthropic" or (p != "none" and bool(cfg["llm"]["base_url"]))
+
+
+def llm_label(cfg):
+    return "Claude API" if cfg["llm"]["provider"] == "anthropic" else "사내 LLM"
+
+
+class LLMError(Exception):
+    """화면에 보여 줄 HTTP 상태와 문장을 담은 오류"""
+
+    def __init__(self, status, message):
+        super().__init__(message)
+        self.status, self.message = status, message
 
 
 def vendor_ready():
@@ -119,6 +146,12 @@ def http_json(cfg, url, payload=None, timeout=30):
     opener = urllib.request.build_opener(*handlers)
     with opener.open(req, timeout=timeout) as res:
         return json.loads(res.read().decode("utf-8"))
+
+
+def ask(cfg, prompt, tier="default", want_json=True):
+    if cfg["llm"]["provider"] == "anthropic":
+        return call_claude(cfg, prompt, tier)
+    return call_llm(cfg, prompt, tier, want_json)
 
 
 def call_llm(cfg, prompt, tier="default", want_json=True):
@@ -157,10 +190,86 @@ def call_llm(cfg, prompt, tier="default", want_json=True):
     return content, out.get("model") or model
 
 
+# ───────── Claude API ─────────
+def claude_client(cfg):
+    try:
+        import anthropic
+    except ImportError:
+        raise LLMError(503, "Claude API를 쓰려면 anthropic 패키지가 필요합니다. 명령 창에서 pip install anthropic 을 실행하세요.")
+    llm = cfg["llm"]
+    # api_key가 비어 있으면 SDK가 환경변수 ANTHROPIC_API_KEY를 읽습니다.
+    return anthropic, anthropic.Anthropic(api_key=llm["api_key"] or None, timeout=float(llm["timeout_sec"]), max_retries=2)
+
+
+def claude_error(anthropic, e):
+    """SDK 오류를 화면용 상태·문장으로 바꿉니다(구체적인 것부터)."""
+    if isinstance(e, anthropic.AuthenticationError):
+        return LLMError(401, "Claude API 키가 맞지 않습니다. settings.json의 api_key나 환경변수 ANTHROPIC_API_KEY를 확인하세요.")
+    if isinstance(e, anthropic.PermissionDeniedError):
+        return LLMError(403, "이 API 키로는 해당 모델을 쓸 수 없습니다.")
+    if isinstance(e, anthropic.NotFoundError):
+        return LLMError(404, "모델 이름이 맞지 않습니다. settings.json의 model을 확인하세요.")
+    if isinstance(e, anthropic.RateLimitError):
+        return LLMError(429, "Claude API 사용 한도에 걸렸습니다. 잠시 후 다시 시도하세요.")
+    if isinstance(e, anthropic.BadRequestError):
+        return LLMError(400, f"Claude API가 요청을 거절했습니다: {getattr(e, 'message', str(e))[:300]}")
+    if isinstance(e, anthropic.APITimeoutError):
+        return LLMError(504, "Claude API 응답 시간 초과. timeout_sec를 늘리세요.")
+    if isinstance(e, anthropic.APIStatusError):
+        return LLMError(502, f"Claude API 오류(HTTP {e.status_code}). 잠시 후 다시 시도하세요.")
+    if isinstance(e, anthropic.APIConnectionError):
+        return LLMError(502, "Claude API에 연결하지 못했습니다. 인터넷 연결과 프록시를 확인하세요.")
+    return LLMError(502, str(e)[:300])
+
+
+def call_claude(cfg, prompt, tier="default"):
+    """Claude Messages API. 긴 응답이 끊기지 않게 스트리밍으로 받아 완성된 메시지를 씁니다."""
+    llm = cfg["llm"]
+    anthropic, client = claude_client(cfg)
+    precise = tier == "precise"
+    model = llm["model_precise"] if precise and llm["model_precise"] else llm["model"]
+    extra = {"output_config": {"effort": llm["effort_precise"] if precise else llm["effort"]}}
+    betas = []
+    if llm["refusal_fallback"]:
+        # 안전 분류기가 거절하면 서버가 다른 모델로 이어서 처리합니다.
+        betas.append("server-side-fallback-2026-07-01")
+        extra["fallbacks"] = "default"
+    try:
+        with client.beta.messages.stream(
+            model=model,
+            max_tokens=int(llm["max_tokens"]),
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": prompt}],
+            betas=betas,
+            extra_body=extra,
+        ) as stream:
+            msg = stream.get_final_message()
+    except anthropic.APIError as e:
+        raise claude_error(anthropic, e)
+    if msg.stop_reason == "refusal":
+        raise LLMError(422, "Claude가 이 자료를 처리하지 않았습니다. 자료 내용을 확인해 주세요.")
+    if msg.stop_reason == "max_tokens":
+        raise LLMError(502, "응답이 길어 중간에 끊겼습니다. settings.json의 max_tokens를 늘리세요.")
+    text = "".join(b.text for b in msg.content if b.type == "text")
+    u = msg.usage
+    log(f"  Claude 사용량: 입력 {u.input_tokens:,} · 출력 {u.output_tokens:,} 토큰")
+    return text, msg.model
+
+
 def health(cfg):
     if not llm_enabled(cfg):
-        return {"ok": False, "error": "settings.json에서 사내 LLM이 꺼져 있습니다(provider: none)."}
+        return {"ok": False, "error": "settings.json에서 AI 연결이 꺼져 있습니다(provider: none)."}
     llm = cfg["llm"]
+    if llm["provider"] == "anthropic":
+        # 키와 모델 이름이 맞는지 모델 정보 조회로 확인합니다(토큰을 쓰지 않음).
+        try:
+            anthropic, client = claude_client(cfg)
+            client.models.retrieve(llm["model"])
+            return {"ok": True, "model": llm["model"]}
+        except LLMError as e:
+            return {"ok": False, "error": e.message}
+        except Exception as e:
+            return {"ok": False, "error": claude_error(anthropic, e).message}
     try:
         http_json(cfg, llm["base_url"] + "/models", timeout=8)
         return {"ok": True, "model": llm["model"]}
@@ -212,7 +321,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/config.js":
             llm = cfg["llm"]
             conf = {
-                "llm": {"endpoint": "/api/llm", "health": "/api/health", "model": llm["model"], "modelPrecise": llm["model_precise"], "maxPromptBytes": llm["max_prompt_bytes"]} if llm_enabled(cfg) else None,
+                "llm": {"endpoint": "/api/llm", "health": "/api/health", "label": llm_label(cfg), "model": llm["model"], "effort": llm["effort"] if llm["provider"] == "anthropic" else "", "effortPrecise": llm["effort_precise"] if llm["provider"] == "anthropic" else "", "modelPrecise": llm["model_precise"], "maxPromptBytes": llm["max_prompt_bytes"]} if llm_enabled(cfg) else None,
                 "libBase": "/vendor/" if cfg["assets"]["offline"] else "",
             }
             return self.send(200, "window.REQAI_CONFIG = " + json.dumps(conf, ensure_ascii=False) + ";\n", "text/javascript; charset=utf-8")
@@ -230,7 +339,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(404, {"error": "없는 주소입니다."})
         cfg = self.cfg
         if not llm_enabled(cfg):
-            return self.send(503, {"error": "사내 LLM이 꺼져 있습니다(settings.json의 provider)."})
+            return self.send(503, {"error": "AI 연결이 꺼져 있습니다(settings.json의 provider)."})
         size = int(self.headers.get("Content-Length") or 0)
         if size > cfg["llm"]["max_prompt_bytes"] * 2 + 10000:
             return self.send(413, {"error": "자료가 너무 깁니다."})
@@ -244,7 +353,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(413, {"error": f"자료가 너무 깁니다({nbytes:,}B > {cfg['llm']['max_prompt_bytes']:,}B)."})
         t0 = time.time()
         try:
-            text, model = call_llm(cfg, prompt, req.get("tier", "default"), bool(req.get("json", True)))
+            text, model = ask(cfg, prompt, req.get("tier", "default"), bool(req.get("json", True)))
+        except LLMError as e:
+            log(f"LLM 오류 {e.status}: {e.message} ({time.time() - t0:.1f}초)")
+            return self.send(e.status, {"error": e.message})
         except urllib.error.HTTPError as e:
             detail = ""
             try:
@@ -264,11 +376,12 @@ class Handler(BaseHTTPRequestHandler):
 
 def check(cfg):
     llm = cfg["llm"]
-    print("사내 LLM 연결 시험")
+    print(f"{llm_label(cfg)} 연결 시험")
     print(f"  provider : {llm['provider']}")
-    print(f"  base_url : {llm['base_url'] or '(비어 있음)'}")
+    if llm["provider"] != "anthropic":
+        print(f"  base_url : {llm['base_url'] or '(비어 있음)'}")
     print(f"  model    : {llm['model'] or '(비어 있음)'}")
-    print(f"  api_key  : {'설정됨' if llm['api_key'] else '없음'}")
+    print(f"  api_key  : {'설정됨' if llm['api_key'] else ('환경변수 ANTHROPIC_API_KEY' if llm['provider'] == 'anthropic' and os.environ.get('ANTHROPIC_API_KEY') else '없음')}")
     if not llm_enabled(cfg):
         print("→ provider가 none이거나 base_url이 비어 있습니다. settings.json을 고치세요.")
         return 1
@@ -278,7 +391,10 @@ def check(cfg):
         return 1
     t0 = time.time()
     try:
-        text, model = call_llm(cfg, '다음 JSON을 그대로 답하세요: {"ok": true, "msg": "연결 성공"}')
+        text, model = ask(cfg, '다음 JSON을 그대로 답하세요: {"ok": true, "msg": "연결 성공"}')
+    except LLMError as e:
+        print(f"2) 시험 호출: 실패 - {e.message}")
+        return 1
     except Exception as e:
         detail = e.read().decode("utf-8", "replace")[:300] if isinstance(e, urllib.error.HTTPError) else reason(e)
         print(f"2) 시험 호출: 실패 - {detail}")
@@ -319,10 +435,10 @@ def main():
     httpd = ThreadingHTTPServer((host, port), Handler)
     url = f"http://{'127.0.0.1' if host in ('0.0.0.0', '') else host}:{port}"
     log(f"실행 중: {url}  (끝내려면 Ctrl+C)")
-    log(f"AI: {'사내 LLM ' + cfg['llm']['model'] + ' @ ' + cfg['llm']['base_url'] if llm_enabled(cfg) else '꺼짐 (예시 모드)'} / 라이브러리: {'vendor 폴더' if cfg['assets']['offline'] else 'CDN(인터넷)'}")
+    log(f"AI: {llm_label(cfg) + ' ' + cfg['llm']['model'] + ('' if cfg['llm']['provider'] == 'anthropic' else ' @ ' + cfg['llm']['base_url']) if llm_enabled(cfg) else '꺼짐 (예시 모드)'} / 라이브러리: {'vendor 폴더' if cfg['assets']['offline'] else 'CDN(인터넷)'}")
     if llm_enabled(cfg):
         h = health(cfg)
-        log("사내 LLM 응답 확인" if h["ok"] else "경고: " + h["error"])
+        log(f"{llm_label(cfg)} 응답 확인" if h["ok"] else "경고: " + h["error"])
     if cfg["server"]["open_browser"] and not args.no_browser:
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
     try:

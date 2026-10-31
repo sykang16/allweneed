@@ -8,16 +8,16 @@
   },
 
   "llm": {
-    "_provider": "none = AI 없이 예시 모드만 / openai = OpenAI 호환 API (vLLM, Ollama, LM Studio, TGI, 사내 LLM 게이트웨이 등)",
+    "_provider": "none = AI 없이 예시 모드만 / anthropic = Claude API / openai = OpenAI 호환 API (vLLM, Ollama, LM Studio, TGI, 사내 LLM 게이트웨이 등)",
     "provider": "none",
 
-    "_base_url": "사내 LLM 주소. /chat/completions 앞까지. 예: http://llm.example.internal:8000/v1",
+    "_base_url": "openai일 때만: 사내 LLM 주소. /chat/completions 앞까지. 예: http://llm.example.internal:8000/v1 (anthropic은 비워 둠)",
     "base_url": "",
 
-    "_api_key": "필요할 때만. 파일 대신 환경변수 REQAI_LLM_API_KEY에 넣어도 됩니다.",
+    "_api_key": "Claude API 키(sk-ant-로 시작) 또는 사내 LLM 키. 파일 대신 환경변수 ANTHROPIC_API_KEY(Claude) / REQAI_LLM_API_KEY에 넣어도 됩니다.",
     "api_key": "",
 
-    "_model": "사내 LLM에서 쓰는 모델 이름. 정밀 분석용 모델이 따로 있으면 model_precise에.",
+    "_model": "모델 이름. anthropic은 비워 두면 claude-opus-5-5. 정밀 분석용 모델이 따로 있으면 model_precise에.",
     "model": "",
     "model_precise": "",
 
@@ -35,7 +35,13 @@
     "verify_tls": true,
     "ca_bundle": "",
     "use_system_proxy": false,
-    "extra_headers": {}
+    "extra_headers": {},
+
+    "_effort": "anthropic일 때만: 생각의 깊이 low·medium·high·xhigh·max. 기본 high, 정밀 분석 xhigh",
+    "effort": "high",
+    "effort_precise": "xhigh",
+    "_refusal_fallback": "anthropic일 때만: Claude가 안전상 거절하면 서버가 다른 모델로 이어서 처리",
+    "refusal_fallback": true
   },
 
   "assets": {

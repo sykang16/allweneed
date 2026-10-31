@@ -17,7 +17,7 @@
 | 방법 | 필요한 것 | AI |
 |---|---|---|
 | A. 브라우저로 바로 열기 | 브라우저만 | 예시 모드(미리 분석한 가상 사례로 전 기능 체험) |
-| B. 실행 서버로 열기 | Python 3.8 이상 | 사내 LLM(OpenAI 호환 API) 연결 |
+| B. 실행 서버로 열기 | Python 3.8 이상 | 사내 LLM(OpenAI 호환 API) 또는 **Claude API**(`pip install anthropic`, 키는 `settings.json`의 `llm.api_key` 또는 환경변수 `ANTHROPIC_API_KEY`) |
 | C. claude.ai 아티팩트 | Claude 계정 | 보는 사람의 Claude 계정 |
 
 ```bash

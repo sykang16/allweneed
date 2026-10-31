@@ -1878,7 +1878,7 @@ async function detectAI() {
       S.ai.provider = 'local'; S.ai.model = CFG.llm.model || '';
       const h = await fetch(CFG.llm.health || '/api/health', { cache: 'no-store' }).then(r => r.json()).catch(() => ({ ok: false, error: 'serve.py에 연결하지 못했습니다.' }));
       S.ai.state = h.ok ? 'ready' : 'down';
-      S.ai.note = h.ok ? '' : (h.error || '사내 LLM에 연결하지 못했습니다.');
+      S.ai.note = h.ok ? '' : (h.error || 'AI에 연결하지 못했습니다.');
       if (h.model) S.ai.model = h.model;
     } else if (window.claude && typeof window.claude.use === 'function') {
       S.ai.provider = 'claude';
@@ -1895,12 +1895,12 @@ function renderBadge() {
   const st = S.ai.state;
   el.className = 'ai-badge ' + st;
   const local = S.ai.provider === 'local';
-  el.innerHTML = st === 'ready' ? (local ? `<i></i>사내 LLM 연결됨${S.ai.model ? ' · ' + esc(S.ai.model) : ''}` : '<i></i>AI 연결됨')
+  el.innerHTML = st === 'ready' ? (local ? `<i></i>${esc(CFG.llm?.label || '사내 LLM')} 연결됨${S.ai.model ? ' · ' + esc(S.ai.model) : ''}` : '<i></i>AI 연결됨')
     : st === 'checking' ? '<i></i>AI 연결 확인 중'
     : st === 'denied' ? '<i></i>AI 사용 안 함 · 예시 모드'
-    : st === 'down' ? '<i></i>사내 LLM 연결 안 됨 · 예시 모드'
+    : st === 'down' ? `<i></i>${esc(CFG.llm?.label || '사내 LLM')} 연결 안 됨 · 예시 모드`
     : '<i></i>예시 모드 · AI 미연결';
-  el.title = st === 'ready' ? (local ? '분석은 settings.json에 지정한 사내 LLM으로 실행됩니다.' : '분석은 보는 사람의 Claude 계정으로 실행됩니다.')
+  el.title = st === 'ready' ? (local ? `분석은 settings.json에 지정한 ${esc(CFG.llm?.label || '사내 LLM')}로 실행됩니다.` : '분석은 보는 사람의 Claude 계정으로 실행됩니다.')
     : st === 'down' ? S.ai.note + ' 사용자 매뉴얼의 문제 해결을 참고하세요.'
     : 'claude.ai나 사내 LLM에 연결하면 내 자료를 AI로 분석할 수 있습니다. 지금은 예시 결과로 모든 기능을 체험할 수 있습니다.';
 }
@@ -2029,7 +2029,7 @@ ${s.text}`.includes(i.value))).length;
   if (ai === 'checking') note = '<p class="muted">AI 연결을 확인하고 있습니다…</p>';
   else if (ai !== 'ready' && !intact) note = `<div class="notice warn"><b>지금 화면에서는 AI를 쓸 수 없습니다.</b> ${ai === 'down' ? esc(S.ai.note) + ' settings.json의 llm 설정과 serve.py 실행 창의 메시지를 확인하세요.' : '이 페이지를 claude.ai에 로그인한 상태로 열거나, serve.py로 사내 LLM에 연결하면 내 자료를 분석할 수 있습니다.'} 예시 자료로 돌아가면 미리 분석한 결과로 모든 기능을 체험할 수 있습니다. <button class="btn ghost" data-act="sample">예시 자료 불러오기</button></div>`;
   else if (ai !== 'ready') note = '<p class="muted small">AI가 연결되지 않은 화면입니다. 예시 자료를 미리 분석해 둔 결과로 다음 단계를 모두 체험할 수 있습니다.</p>';
-  else if (S.ai.provider === 'local') note = `<p class="muted small">분석은 사내 LLM(${esc(S.ai.model || '설정된 모델')})으로 실행됩니다. 가린 내용만 serve.py를 거쳐 전송됩니다.${intact ? ' 예시 자료는 미리 분석한 결과를 바로 불러올 수도 있습니다.' : ''}</p>`;
+  else if (S.ai.provider === 'local') note = `<p class="muted small">분석은 ${esc(CFG.llm?.label || '사내 LLM')}(${esc(S.ai.model || '설정된 모델')})로 실행됩니다. 가린 내용만 serve.py를 거쳐 전송됩니다.${intact ? ' 예시 자료는 미리 분석한 결과를 바로 불러올 수도 있습니다.' : ''}</p>`;
   else note = `<p class="muted small">분석은 이 페이지를 연 사람의 Claude 계정으로 실행됩니다. 처음 실행할 때 사용 허용 여부를 묻습니다.${intact ? ' 예시 자료는 미리 분석한 결과를 바로 불러올 수도 있습니다.' : ''}</p>`;
   return `
   <div class="analyze">
@@ -2050,7 +2050,7 @@ ${s.text}`.includes(i.value))).length;
   </div>`;
 }
 function engineLabel() {
-  return S.ai.provider === 'local' ? `사내 LLM (${S.ai.model || '모델 미지정'}${S.precise && CFG.llm?.modelPrecise ? ', 정밀: ' + CFG.llm.modelPrecise : ''})` : `Claude (claude.ai, ${S.precise ? '정밀' : '기본'} 등급)`;
+  return S.ai.provider === 'local' ? `${CFG.llm?.label || '사내 LLM'} (${S.ai.model || '모델 미지정'}${S.precise && CFG.llm?.modelPrecise ? ', 정밀: ' + CFG.llm.modelPrecise : ''}${CFG.llm?.effort ? ', effort ' + (S.precise ? CFG.llm.effortPrecise : CFG.llm.effort) : ''})` : `Claude (claude.ai, ${S.precise ? '정밀' : '기본'} 등급)`;
 }
 const STAGE_DEFS = [
   { label: '요구사항 추출·분류', desc: '요청 문장을 찾아 유형을 나누고 출처를 답니다' },
@@ -2299,9 +2299,9 @@ const ERR_COPY = {
   session_expired: '로그인이 만료되었습니다. claude.ai에 다시 로그인한 뒤 시도하세요.',
   cancelled: '분석을 멈췄습니다.',
   local_down: 'serve.py에 연결하지 못했습니다. serve.py 실행 창이 열려 있는지 확인하세요.',
-  local_timeout: '사내 LLM 응답이 너무 늦습니다. settings.json의 timeout_sec를 늘리거나 자료를 줄여 보세요.'
+  local_timeout: 'AI 응답이 너무 늦습니다. settings.json의 timeout_sec를 늘리거나 자료를 줄여 보세요.'
 };
-const errText = e => ERR_COPY[e?.code] || (e?.code === 'local_error' ? `사내 LLM 오류: ${e.message || '알 수 없는 오류'}` : e?.message && !e.code ? e.message : '일시적인 오류로 처리하지 못했습니다. 다시 시도해 주세요.');
+const errText = e => ERR_COPY[e?.code] || (e?.code === 'local_error' ? `${CFG.llm?.label || '사내 LLM'} 오류: ${e.message || '알 수 없는 오류'}` : e?.message && !e.code ? e.message : '일시적인 오류로 처리하지 못했습니다. 다시 시도해 주세요.');
 const MAX_BYTES = 240000;
 let tick = null;
 
