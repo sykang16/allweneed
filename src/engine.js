@@ -73,8 +73,19 @@ function findSpans(M, text) {
       if (!taken(m.index, m.index + v.length)) spans.push({ start: m.index, end: m.index + v.length, type: rule.type, value: v });
     }
   }
-  spans.sort((a, b) => a.start - b.start);
   for (const s of spans) s.item = ensureItem(M, s.type, s.value);
+  // 한 번 찾은 값은 다른 곳에서 단서 없이 나와도 가립니다(예: 메일 머리글의 'From: 홍길동').
+  for (const it of M.items.values()) {
+    if (it.type === '지정어' || !it.value) continue;
+    let i = 0;
+    while ((i = text.indexOf(it.value, i)) !== -1) {
+      const e = i + it.value.length;
+      const inWord = it.type === '이름' && /[가-힣]/.test(text[i - 1] || '');
+      if (!inWord && !taken(i, e)) spans.push({ start: i, end: e, type: it.type, value: it.value, item: it });
+      i = e;
+    }
+  }
+  spans.sort((a, b) => a.start - b.start);
   return spans;
 }
 

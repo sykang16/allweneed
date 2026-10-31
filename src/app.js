@@ -35,6 +35,8 @@ function sampleIntact() {
   return base.length === SAMPLE_SOURCES.length && SAMPLE_SOURCES.every((x, i) => base[i].text.trim() === x.text.trim() && base[i].kind === x.kind);
 }
 function maskAll(list = S.sources) {
+  // 먼저 모든 자료에서 민감정보를 찾아 둔 뒤 가려야, 뒤 자료에서 찾은 이름도 앞 자료에서 가려집니다.
+  for (const s of S.sources) findSpans(S.M, `${s.title}\n${s.author}\n${s.text}`);
   for (const s of list) { s.mTitle = maskText(S.M, s.title); s.mAuthor = maskText(S.M, s.author); s.masked = maskText(S.M, s.text); }
   return list;
 }
