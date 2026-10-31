@@ -1,0 +1,8 @@
+# 사내 LLM 주소·키가 들어가는 개인 설정은 올리지 않습니다.
+settings.json
+# 폐쇄망 반입용 라이브러리는 fetch_vendor.py로 받습니다.
+vendor/
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db

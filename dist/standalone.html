@@ -1,0 +1,2713 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<script src="config.js"></script>
+</head>
+<body>
+<title>모두의 요구사항 한 번에!</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="고객 니즈·회의록·참고문서를 넣으면 민감정보를 가린 뒤 AI가 요구사항을 추출·분류하고, 누락·충돌을 점검해 표준 양식 개발요청서를 만드는 도구">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+KR:wght@600;700&family=Nanum+Myeongjo:wght@400;700;800&display=swap">
+<style>
+/* 레이아웃: 상단 고정 헤더 + 5단계 진행 표시줄, 아래로 단계별 작업 화면. 결과 문서는 종이 질감 미리보기. */
+:root {
+  --bg: #F3F5F3;
+  --surface: #FFFFFF;
+  --sunk: #E9EEEB;
+  --ink: #18211F;
+  --ink-2: #44514D;
+  --muted: #6A7773;
+  --line: #D6DEDA;
+  --accent: #1E5C57;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #DCEBE7;
+  --redact-bg: #18211F;
+  --redact-fg: #E9EEEB;
+  --restore: #FFF1B8;
+  --ok: #2D7A4B; --ok-soft: #DDF0E3;
+  --cond: #A86A0C; --cond-soft: #FBEBCF;
+  --no: #B03A3A; --no-soft: #F7DEDC;
+  --open: #4752A8; --open-soft: #E2E5F7;
+  --paper: #FFFFFF; --paper-ink: #1B1F1E; --paper-line: #B9C4C0; --paper-head: #E4EEEA;
+  --shadow: 0 1px 2px rgba(20, 40, 35, .06), 0 4px 16px rgba(20, 40, 35, .05);
+  --f-body: 'IBM Plex Sans KR', 'Malgun Gothic', 'Apple SD Gothic Neo', system-ui, sans-serif;
+  --f-display: 'Noto Serif KR', 'Batang', 'AppleMyungjo', serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, 'Consolas', monospace;
+  --r: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111716; --surface: #18201E; --sunk: #202a28; --ink: #E4ECE9; --ink-2: #BCC8C4; --muted: #8E9C98; --line: #2E3A37;
+    --accent: #6FC0B4; --accent-ink: #0D1413; --accent-soft: #1E3430;
+    --redact-bg: #E4ECE9; --redact-fg: #18211F; --restore: #4A4118;
+    --ok: #6CCB8F; --ok-soft: #1C3426; --cond: #E3AE55; --cond-soft: #3A2D14; --no: #EE8A84; --no-soft: #3D2120; --open: #9DA7F0; --open-soft: #262B4A;
+    --paper: #1C2422; --paper-ink: #E4ECE9; --paper-line: #3B4946; --paper-head: #243431;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 16px rgba(0, 0, 0, .25);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111716; --surface: #18201E; --sunk: #202a28; --ink: #E4ECE9; --ink-2: #BCC8C4; --muted: #8E9C98; --line: #2E3A37;
+  --accent: #6FC0B4; --accent-ink: #0D1413; --accent-soft: #1E3430;
+  --redact-bg: #E4ECE9; --redact-fg: #18211F; --restore: #4A4118;
+  --ok: #6CCB8F; --ok-soft: #1C3426; --cond: #E3AE55; --cond-soft: #3A2D14; --no: #EE8A84; --no-soft: #3D2120; --open: #9DA7F0; --open-soft: #262B4A;
+  --paper: #1C2422; --paper-ink: #E4ECE9; --paper-line: #3B4946; --paper-head: #243431;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 16px rgba(0, 0, 0, .25);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased; word-break: keep-all; overflow-wrap: anywhere; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+h1, h2, h3, h4 { text-wrap: balance; margin: 0; line-height: 1.35; }
+h2 { font-size: 22px; font-weight: 700; }
+h3 { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+h4 { font-size: 13px; font-weight: 600; color: var(--ink-2); letter-spacing: .02em; margin-top: 4px; }
+p { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.mono { font-family: var(--f-mono); font-size: 13px; }
+.grow { flex: 1; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row.wrap { flex-wrap: wrap; }
+.empty { color: var(--muted); padding: 16px; text-align: center; border: 1px dashed var(--line); border-radius: var(--r); font-size: 14px; }
+
+/* 헤더 */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
+.top-in { max-width: 1320px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 10px; display: flex; gap: 12px 20px; align-items: center; flex-wrap: wrap; }
+.brand { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; min-width: 0; }
+.brand h1 { font-family: var(--f-display); font-size: 21px; font-weight: 700; letter-spacing: -.01em; }
+.brand h1 em { font-style: normal; color: var(--accent); }
+.brand p { color: var(--muted); font-size: 13px; }
+.ai-badge { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 500; padding: 4px 10px; border-radius: 99px; background: var(--sunk); color: var(--ink-2); white-space: nowrap; }
+.ai-badge i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.ai-badge.ready { background: var(--ok-soft); color: var(--ok); } .ai-badge.ready i { background: var(--ok); }
+.ai-badge.demo, .ai-badge.denied { background: var(--cond-soft); color: var(--cond); } .ai-badge.demo i, .ai-badge.denied i { background: var(--cond); }
+.ai-badge.checking i { animation: blink 1s infinite; }
+@keyframes blink { 50% { opacity: .2; } }
+.stepper { max-width: 1320px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 10px; display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.step { display: flex; align-items: center; gap: 8px; border: 0; background: none; padding: 6px 8px; border-radius: 6px; cursor: pointer; color: var(--muted); white-space: nowrap; font-size: 14px; }
+.step b { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 12.5px; font-family: var(--f-mono); border: 1.5px solid var(--line); background: var(--surface); }
+.step.done { color: var(--ink-2); } .step.done b { border-color: var(--accent); color: var(--accent); }
+.step.on { color: var(--ink); font-weight: 600; } .step.on b { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.step:disabled { opacity: .45; cursor: default; }
+.step:not(:disabled):hover { background: var(--sunk); }
+.step-line { flex: 0 0 18px; height: 1.5px; background: var(--line); }
+
+main { max-width: 1320px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px 64px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+.review-head, .tabs, .tab-body, .bar, .intro, .src-grid { min-width: 0; }
+
+/* 공통 부품 */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; line-height: 1.3; white-space: nowrap; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover:not(:disabled) { filter: brightness(1.08); }
+.btn.ghost { background: transparent; }
+.btn.danger { color: var(--no); border-color: var(--no); }
+.btn.big { padding: 11px 20px; font-size: 15px; }
+.btn.small { padding: 5px 10px; font-size: 13px; }
+.link { border: 0; background: none; color: var(--accent); text-decoration: underline; cursor: pointer; padding: 0; }
+.icon-btn { border: 0; background: none; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; color: var(--muted); font-size: 16px; flex: none; }
+.icon-btn:hover:not(:disabled) { background: var(--sunk); color: var(--ink); }
+.icon-btn:disabled { opacity: .3; cursor: default; }
+input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 7px 10px; font-size: 14px; min-width: 0; }
+textarea { resize: vertical; line-height: 1.6; }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+input[type=checkbox], input[type=radio] { accent-color: var(--accent); width: 16px; height: 16px; flex: none; }
+.fld { display: grid; gap: 4px; min-width: 0; } .fld > span { font-size: 12.5px; color: var(--muted); font-weight: 500; }
+.check { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.count { font-family: var(--f-mono); font-size: 12px; font-weight: 500; background: var(--sunk); color: var(--ink-2); padding: 1px 7px; border-radius: 99px; }
+.sid { font-family: var(--f-mono); font-size: 12px; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 1px 6px; border-radius: 4px; flex: none; }
+.tag { font-size: 11.5px; background: var(--open-soft); color: var(--open); padding: 1px 6px; border-radius: 4px; flex: none; }
+.lbl { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .03em; margin-right: 6px; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .06em; color: var(--accent); }
+.notice { padding: 12px 14px; border-radius: var(--r); background: var(--accent-soft); font-size: 14px; }
+.notice.warn { background: var(--cond-soft); } .notice.err { background: var(--no-soft); color: var(--no); } .notice.ok { background: var(--ok-soft); color: var(--ok); }
+.bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding-top: 4px; }
+.bar.inner { padding: 12px 14px; border-radius: var(--r); background: var(--sunk); }
+.pill { display: inline-block; font-size: 12.5px; font-weight: 600; padding: 2px 9px; border-radius: 99px; white-space: nowrap; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); } .pill.cond { background: var(--cond-soft); color: var(--cond); } .pill.no { background: var(--no-soft); color: var(--no); } .pill.open { background: var(--open-soft); color: var(--open); }
+.ref { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); background: var(--surface); border-radius: 4px; padding: 0 6px; font-family: var(--f-mono); font-size: 12px; font-weight: 600; color: var(--accent); cursor: pointer; line-height: 20px; vertical-align: middle; }
+.ref small { font-family: var(--f-body); font-weight: 400; color: var(--muted); font-size: 11px; }
+.ref:hover { border-color: var(--accent); }
+.reqchip { font-family: var(--f-mono); font-size: 12px; font-weight: 600; border: 0; background: var(--sunk); color: var(--ink); padding: 1px 7px; border-radius: 4px; cursor: pointer; }
+.reqchip:hover { background: var(--accent-soft); } .reqchip.all { cursor: default; color: var(--muted); }
+.redact { background: var(--redact-bg); color: var(--redact-fg); font-family: var(--f-mono); font-size: .86em; padding: 1px 5px; border-radius: 3px; white-space: nowrap; }
+.unmasked { border-bottom: 1.5px dashed var(--cond); }
+.tok { font-family: var(--f-mono); font-size: .86em; background: var(--sunk); padding: 0 4px; border-radius: 3px; white-space: nowrap; }
+.restored { background: linear-gradient(transparent 55%, var(--restore) 55%); }
+.spinner { width: 16px; height: 16px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+.switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; cursor: pointer; white-space: nowrap; }
+.seg { display: flex; gap: 4px; background: var(--sunk); padding: 3px; border-radius: 7px; width: fit-content; max-width: 100%; flex-wrap: wrap; }
+.seg > button, .seg > label { border: 0; background: transparent; padding: 5px 12px; border-radius: 5px; cursor: pointer; font-size: 13.5px; display: flex; align-items: center; gap: 6px; }
+.seg > button.on, .seg > label:has(input:checked) { background: var(--surface); box-shadow: var(--shadow); font-weight: 600; }
+.seg input[type=radio] { width: 14px; height: 14px; }
+
+/* 1단계 */
+.intro { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; align-items: stretch; }
+.intro h2 { font-family: var(--f-display); font-size: 25px; margin-bottom: 8px; letter-spacing: -.01em; }
+.intro p { color: var(--ink-2); max-width: 62ch; }
+.sample-note { display: grid; gap: 6px; align-content: start; padding: 16px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--cond); }
+.sample-note span { font-size: 13.5px; color: var(--ink-2); }
+.sample-note .row { margin-top: 6px; }
+.src-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.src-col { display: grid; gap: 10px; min-width: 0; }
+.src-col > header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding-bottom: 6px; border-bottom: 2px solid var(--ink); }
+.src-col > header .muted { font-size: 12.5px; }
+.src-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; display: grid; gap: 8px; min-width: 0; }
+.src-head { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.src-head .src-title { font-weight: 600; border-color: transparent; padding-inline: 4px; }
+.src-head .src-title:hover { border-color: var(--line); }
+.src-meta { display: grid; grid-template-columns: minmax(0, 1fr) 118px; gap: 6px; }
+.src-meta input { font-size: 13px !important; padding: 5px 8px !important; }
+.src-card textarea { font-size: 13.5px; background: var(--bg); }
+.src-add { display: flex; gap: 8px; flex-wrap: wrap; }
+.drop { flex: 1; min-width: 160px; display: grid; justify-items: center; gap: 0; padding: 10px; border: 1.5px dashed var(--line); border-radius: var(--r); cursor: pointer; text-align: center; background: var(--surface); }
+.drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.drop span { font-size: 14px; font-weight: 500; color: var(--accent); }
+.drop small { font-size: 11.5px; color: var(--muted); }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.drop.inline { flex: none; min-width: 0; padding: 7px 14px; }
+
+/* 2단계 */
+.mask-layout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; align-items: start; }
+.mask-side { position: sticky; top: 120px; max-height: calc(100vh - 140px); overflow: auto; }
+.mgroup { display: grid; gap: 4px; }
+.mrow { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; font-size: 13.5px; padding: 4px 6px; border-radius: 5px; cursor: pointer; }
+.mrow:hover { background: var(--sunk); }
+.mrow.off .mval { text-decoration: line-through; color: var(--muted); }
+.mval { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mtok { font-family: var(--f-mono); font-size: 11.5px; background: var(--redact-bg); color: var(--redact-fg); padding: 0 5px; border-radius: 3px; }
+.mcnt { font-size: 12px; color: var(--muted); font-family: var(--f-mono); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { display: inline-flex; align-items: center; gap: 2px; background: var(--sunk); border-radius: 99px; padding: 2px 4px 2px 10px; font-size: 13px; }
+.chip button { border: 0; background: none; cursor: pointer; color: var(--muted); padding: 0 4px; }
+.mask-preview { display: grid; gap: 14px; min-width: 0; }
+.prev header { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.prev-meta { font-size: 13px; color: var(--muted); }
+.prev-text { white-space: pre-wrap; font-family: var(--f-body); font-size: 14px; line-height: 1.75; margin: 0; background: var(--bg); padding: 12px 14px; border-radius: 6px; max-height: 460px; overflow: auto; }
+
+/* 3단계 */
+.analyze { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 20px; align-items: start; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 0; }
+.stats div { background: var(--bg); border-radius: 6px; padding: 10px 12px; }
+.stats dt { font-size: 12px; color: var(--muted); }
+.stats dd { margin: 0; font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; font-family: var(--f-mono); }
+.stats dd small { font-size: 13px; font-family: var(--f-body); color: var(--muted); margin-left: 2px; }
+.src-mini { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13.5px; }
+.src-mini li { display: flex; gap: 8px; align-items: baseline; }
+.stages { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.stages li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; padding: 8px 0; align-items: start; }
+.stages li i { width: 18px; height: 18px; margin-top: 2px; border-radius: 50%; border: 2px solid var(--line); position: relative; }
+.stages li.run i { border-color: var(--accent); border-top-color: transparent; animation: spin .9s linear infinite; }
+.stages li.done i { background: var(--accent); border-color: var(--accent); }
+.stages li.done i::after { content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid var(--accent-ink); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.stages li.err i { border-color: var(--no); background: var(--no-soft); }
+.stages b { display: block; font-size: 14.5px; } .stages span { font-size: 13px; color: var(--muted); }
+.stages li.wait b { color: var(--muted); }
+.live { display: flex; gap: 10px; align-items: center; padding: 12px 14px; background: var(--sunk); border-radius: var(--r); font-size: 14px; flex-wrap: wrap; }
+
+/* 4단계 */
+.review-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
+.review-head > div { display: grid; gap: 4px; max-width: 80ch; }
+.review-head h2 { font-family: var(--f-display); font-size: 24px; }
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: thin; }
+.tabs button { border: 0; background: none; padding: 10px 14px; cursor: pointer; font-size: 14.5px; color: var(--muted); border-bottom: 2.5px solid transparent; margin-bottom: -1px; display: flex; gap: 7px; align-items: center; white-space: nowrap; }
+.tabs button.on { color: var(--ink); font-weight: 600; border-bottom-color: var(--accent); }
+.tabs button:hover { color: var(--ink); }
+.tab-body { display: grid; gap: 16px; min-width: 0; }
+.req-summary { display: grid; gap: 10px; }
+.sbar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; gap: 2px; background: var(--sunk); }
+.sbar span.ok { background: var(--ok); } .sbar span.cond { background: var(--cond); } .sbar span.no { background: var(--no); } .sbar span.open { background: var(--open); }
+.filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.fchip { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; padding: 3px 12px; cursor: pointer; font-size: 13.5px; display: inline-flex; gap: 6px; align-items: center; }
+.fchip b { font-family: var(--f-mono); font-size: 12px; font-weight: 600; }
+.fchip.on { border-color: var(--ink); background: var(--ink); color: var(--bg); }
+.req-tbl, .at-tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+.req-tbl th, .at-tbl th { text-align: left; font-size: 12.5px; font-weight: 600; color: var(--muted); padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--bg); white-space: nowrap; }
+.req-tbl td, .at-tbl td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.req-tbl tbody tr:last-child td, .at-tbl tbody tr:last-child td { border-bottom: 0; }
+.rrow { cursor: pointer; } .rrow:hover { background: var(--bg); } .rrow.open { background: var(--accent-soft); }
+.rrow.confirmed .ttl::after { content: " ✓"; color: var(--ok); font-weight: 700; }
+.rrow td:first-child { white-space: nowrap; }
+.ttl { font-weight: 500; min-width: 180px; }
+.req-tbl td:nth-child(3), .req-tbl td:nth-child(4), .req-tbl td:nth-child(5) { white-space: nowrap; }
+.pri { font-weight: 600; text-align: center; } .p-상 { color: var(--no); } .p-중 { color: var(--cond); } .p-하 { color: var(--muted); }
+.refs { white-space: nowrap; } .refs .ref + .ref { margin-left: 4px; }
+.chg { margin-left: 6px; font-family: var(--f-body); font-size: 11px; font-weight: 600; padding: 1px 5px; border-radius: 3px; background: var(--open-soft); color: var(--open); }
+.chg.added { background: var(--ok-soft); color: var(--ok); }
+tr.detail > td { background: var(--bg); padding: 0; }
+.rdetail { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; padding: 16px 18px; }
+.rd-main, .rd-src { display: grid; gap: 12px; align-content: start; min-width: 0; }
+.asis-tobe { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.asis-tobe > div { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
+.asis-tobe > div:last-child { border-color: var(--accent); }
+.asis-tobe p { margin-top: 2px; font-size: 14px; }
+.crit { margin: 4px 0 0; padding-left: 20px; display: grid; gap: 2px; }
+blockquote { margin: 0; padding: 8px 12px; background: var(--surface); border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; display: grid; gap: 2px; font-size: 13.5px; }
+blockquote .ref { justify-self: start; }
+blockquote .who { font-size: 12.5px; color: var(--muted); }
+blockquote q { quotes: "“" "”"; color: var(--ink); }
+.editor { padding: 16px 18px; display: grid; gap: 10px; }
+.ed-row { display: flex; gap: 10px; flex-wrap: wrap; } .ed-row > .fld { min-width: 120px; } .ed-row > .fld.grow { flex: 1; min-width: 220px; }
+.ed-row.two { display: grid; grid-template-columns: 1fr 1fr; }
+.meet { display: grid; gap: 16px; }
+.meet-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.arrow { color: var(--accent); font-weight: 700; padding-inline: 0 !important; }
+.dlist { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; font-size: 14px; }
+.dlist li { padding: 8px 10px; border-radius: 6px; background: var(--bg); border-left: 3px solid var(--ok); }
+.dlist.open li { border-left-color: var(--open); } .dlist.act li { border-left-color: var(--cond); }
+.checks { display: grid; gap: 22px; }
+.checks > section { display: grid; gap: 10px; }
+.dot { width: 10px; height: 10px; border-radius: 2px; }
+.dot.missing { background: var(--cond); } .dot.conflicts { background: var(--no); } .dot.ambiguous { background: var(--open); }
+.ck { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--cond); border-radius: 6px; padding: 12px 14px; display: grid; gap: 6px; font-size: 14px; }
+.ck.conflicts { border-left-color: var(--no); } .ck.ambiguous { border-left-color: var(--open); }
+.ck.resolved { opacity: .55; } .ck.resolved header b { text-decoration: line-through; }
+.ck header { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ck .check { justify-self: end; color: var(--muted); }
+.sugg { background: var(--bg); padding: 6px 10px; border-radius: 5px; }
+.sugg span { font-size: 12px; font-weight: 600; color: var(--accent); margin-right: 8px; }
+.pos { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.pos li { display: grid; grid-template-columns: minmax(120px, max-content) 1fr auto; gap: 10px; align-items: baseline; }
+.pos .who { font-weight: 600; font-size: 13.5px; }
+.mail { display: grid; gap: 16px; }
+.mail-opts { grid-template-columns: 220px 220px minmax(0, 1fr); align-items: end; }
+.mail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.mailcard header { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.subj { font-size: 14px; font-weight: 500; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.mailbody { white-space: pre-wrap; font-family: var(--f-body); font-size: 13.5px; line-height: 1.7; margin: 0; background: var(--bg); padding: 12px; border-radius: 6px; }
+.apply { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.timeline > li { padding-left: 14px; border-left: 2px solid var(--line); display: grid; gap: 6px; }
+.timeline > li:first-child { border-left-color: var(--accent); }
+.t-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.timeline ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 5px; font-size: 13.5px; }
+.timeline ul li { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.ctype { font-size: 11.5px; font-weight: 600; padding: 0 6px; border-radius: 3px; background: var(--sunk); flex: none; }
+.ctype.t-추가 { background: var(--ok-soft); color: var(--ok); } .ctype.t-변경 { background: var(--open-soft); color: var(--open); } .ctype.t-해결 { background: var(--accent-soft); color: var(--accent); } .ctype.t-삭제 { background: var(--no-soft); color: var(--no); }
+
+/* 5단계 */
+.export { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 20px; align-items: start; }
+.tpl { position: sticky; top: 120px; max-height: calc(100vh - 140px); overflow: auto; }
+.tpl-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.tpl-list li { display: flex; gap: 6px; align-items: center; }
+.tpl-list li.off input:not([type=checkbox]) { color: var(--muted); text-decoration: line-through; }
+.tpl-list input:not([type=checkbox]) { padding: 4px 8px !important; font-size: 13.5px !important; }
+.tpl-list select { width: 104px !important; flex: none; padding: 4px 6px !important; font-size: 12.5px !important; }
+.doc-side { display: grid; gap: 14px; min-width: 0; }
+.export-bar { gap: 8px; }
+.paper { background: var(--paper); color: var(--paper-ink); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: 4px; padding: 40px 44px; display: grid; gap: 12px; min-width: 0; font-size: 13.5px; }
+.doc-title { font-family: var(--f-display); text-align: center; font-size: 26px; letter-spacing: .3em; padding-bottom: 14px; border-bottom: 3px double var(--paper-line); margin-bottom: 4px; }
+.doc-h1 { font-size: 17px; margin-top: 18px; padding-bottom: 4px; border-bottom: 1.5px solid var(--paper-ink); }
+.doc-h2 { font-size: 14.5px; margin-top: 8px; }
+.doc-p { line-height: 1.75; }
+.doc-ul { margin: 0; padding-left: 20px; display: grid; gap: 3px; }
+.doc-scroll { overflow-x: auto; }
+.doc-kv, .doc-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.doc-kv th, .doc-kv td, .doc-tbl th, .doc-tbl td { border: 1px solid var(--paper-line); padding: 6px 8px; vertical-align: top; text-align: left; }
+.doc-kv th { width: 140px; background: var(--paper-head); font-weight: 600; white-space: nowrap; }
+.doc-tbl th { background: var(--paper-head); font-weight: 600; white-space: nowrap; }
+.doc-tbl td { min-width: 64px; }
+
+/* 모달·알림 */
+.modal { position: fixed; inset: 0; background: rgba(10, 20, 18, .45); z-index: 20; display: grid; place-items: center; padding: 16px; }
+.modal-in { background: var(--surface); border-radius: 10px; max-width: 760px; width: 100%; max-height: 85vh; overflow: auto; padding: 20px; display: grid; gap: 12px; box-shadow: var(--shadow); position: relative; }
+.m-head { display: flex; gap: 10px; align-items: flex-start; padding-right: 32px; }
+#modal-close { position: absolute; top: 12px; right: 12px; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 8px; font-size: 14px; z-index: 30; max-width: calc(100% - 32px); box-shadow: var(--shadow); }
+.foot { max-width: 1320px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 32px; color: var(--muted); font-size: 12.5px; }
+
+.ai-badge.down { background: var(--no-soft); color: var(--no); } .ai-badge.down i { background: var(--no); }
+.bulk { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
+.bulk .bulk-drop { flex: 1 1 320px; padding: 16px; border-width: 2px; }
+.bulk .bulk-drop span { font-size: 15px; }
+.bulk .bulk-drop small { font-size: 12.5px; max-width: 72ch; }
+.folder-btn { position: relative; align-self: center; }
+.folder-btn input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.folder-btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.import-note { position: relative; padding-right: 40px; display: grid; gap: 4px; }
+.import-note .icon-btn { position: absolute; top: 6px; right: 6px; color: inherit; }
+.kind-sel { flex: none; width: auto; font-size: 12px; padding: 2px 4px; border-radius: 4px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); }
+.review-tools { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.why { border: 1px dashed var(--line); border-radius: 6px; padding: 10px 12px; background: var(--bg); display: grid; gap: 6px; }
+.why-head { display: flex; align-items: center; gap: 8px; }
+.why dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; font-size: 13.5px; margin: 0; }
+.why dt { color: var(--muted); font-weight: 600; font-size: 12.5px; }
+.why dd { margin: 0; }
+.conf { font-size: 11.5px; font-weight: 600; padding: 1px 6px; border-radius: 3px; margin-left: 6px; }
+.conf.c-높음 { background: var(--ok-soft); color: var(--ok); } .conf.c-보통 { background: var(--cond-soft); color: var(--cond); } .conf.c-낮음 { background: var(--no-soft); color: var(--no); }
+@media (max-width: 720px) { .why dl { grid-template-columns: 1fr; } }
+.form-spec { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
+.form-spec li { display: grid; grid-template-columns: 84px 1fr; gap: 8px; padding: 6px 8px; border-radius: 6px; background: var(--bg); }
+.form-spec b { font-weight: 600; color: var(--ink-2); }
+/* 품의문 미리보기: 휴먼명조, 없으면 비슷한 명조(HY신명조·함초롬바탕·나눔명조·바탕) */
+.pumui { font-family: '휴먼명조', 'HumanMyeongjo', 'HY신명조', 'HYSinMyeongJo-Medium', '함초롬바탕', 'HCR Batang', 'Nanum Myeongjo', 'Batang', serif; color: #111; font-size: 14pt; line-height: 1.6; text-align: justify; }
+.pumui { max-width: 170mm; margin: 0 auto; }
+.pm-title { font-size: 22pt; font-weight: 700; text-align: center; padding: 4mm 0; border-top: 3px solid #2E5D8E; border-bottom: 3px solid #2E5D8E; line-height: 1.25; }
+.pm-h1 { font-size: 16pt; font-weight: 700; }
+.pm-h2 { font-size: 15pt; font-weight: 700; padding-left: 0.5em; }
+.pm-b { display: grid; grid-template-columns: 1.3em 1fr; }
+.pm-l2 { padding-left: 1em; } .pm-l3 { padding-left: 1.5em; } .pm-l4 { padding-left: 2em; }
+.pm-note { font-size: 12pt; line-height: 1.3; padding-left: 1em; }
+.pm-attach { }
+.pm-tt { text-align: center; text-decoration: underline; font-size: 14pt; }
+.pm-tbl { width: 100%; border-collapse: collapse; font-size: 12pt; line-height: 1.1; }
+.pm-tbl th { white-space: nowrap; }
+.pm-tbl td:first-child { white-space: nowrap; }
+.pm-tbl th, .pm-tbl td { border: 0.1mm solid #000; padding: 0.5mm 1.8mm; height: 7mm; text-align: center; vertical-align: middle; }
+.pm-tbl th { background: #E5E5E5; font-weight: 700; }
+.pm-tbl tr > :first-child { border-left: 0; } .pm-tbl tr > :last-child { border-right: 0; }
+.pm-tbl td.l { text-align: left; }
+.pm-page { text-align: center; font-size: 12pt; margin-top: 24pt; color: #444; }
+/* 요구사항명세서 미리보기: 사내 Excel 양식 */
+.spec { font-family: 'Malgun Gothic', var(--f-body); font-size: 12.5px; color: #111; display: grid; gap: 10px; }
+.spec table { border-collapse: collapse; }
+.spec th, .spec td { border: 1px solid #9a9a9a; padding: 3px 6px; vertical-align: middle; }
+.spec th { background: #FFFF00; font-weight: 700; text-align: center; white-space: nowrap; }
+.spec-tbl td.c { text-align: center; white-space: nowrap; } .spec-tbl td.l { text-align: left; vertical-align: top; }
+.spec-tbl td:nth-child(5) { min-width: 320px; } .spec-tbl td:nth-child(4) { min-width: 140px; } .spec-tbl td:nth-child(8) { min-width: 150px; }
+@media (max-width: 1080px) {
+  .src-grid { grid-template-columns: 1fr; }
+  .mask-layout, .analyze, .export, .apply { grid-template-columns: minmax(0, 1fr); }
+  .mask-side, .tpl { position: static; max-height: none; }
+  .meet-grid, .mail-grid { grid-template-columns: minmax(0, 1fr); }
+  .rdetail { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+  .intro { grid-template-columns: minmax(0, 1fr); }
+  .intro h2 { font-size: 21px; }
+  .brand p { display: none; }
+  .step span { display: none; } .step.on span { display: inline; }
+  .asis-tobe, .ed-row.two { grid-template-columns: minmax(0, 1fr); }
+  .mail-opts { grid-template-columns: minmax(0, 1fr); }
+  .paper { padding: 22px 16px; }
+  .pos li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .stats dd { font-size: 20px; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand"><h1>모두의 요구사항 <em>한 번에!</em></h1><p>말한 건 다 담고, 빠진 건 먼저 묻는 AI</p></div>
+    <span id="ai-badge" class="ai-badge checking"><i></i>AI 연결 확인 중</span>
+  </div>
+  <nav class="stepper" id="stepper" aria-label="작업 단계"></nav>
+</header>
+<main id="main"></main>
+<footer class="foot">프로토타입 · 예시 자료는 모두 가상의 기관·인물·번호입니다. 입력한 자료는 이 브라우저 안에만 있고 저장되지 않으며, AI에는 민감정보를 가린 내용만 전송됩니다.</footer>
+<div id="modal" class="modal" hidden><div class="modal-in" role="dialog" aria-modal="true" aria-label="원 자료"><button id="modal-close" class="icon-btn" aria-label="닫기">×</button><div id="modal-body"></div></div></div>
+<div id="toast" class="toast" role="status" hidden></div>
+<script>
+// 예시 자료: 모두 가상의 기관·인물·번호입니다. 실제 업무 자료가 아닙니다.
+// 데모 결과의 {{이름}} 자리표시는 실행 시 마스킹 토큰(예: [이름-1])으로 바뀝니다.
+
+const SAMPLE_SOURCES = [
+  {
+    kind: 'need',
+    title: '고객 요청 메일: 가맹점 매출조회 포털 개선 요청',
+    author: '김민지 대리 (가상) 소상공인가맹점협회',
+    date: '2026-10-06',
+    text: `제목: [요청] 가맹점 매출조회 포털 개선 요청드립니다
+
+안녕하세요, 소상공인가맹점협회 김민지 대리입니다.
+회원 가맹점들에서 반복적으로 들어오는 불편 사항을 정리해 개선을 요청드립니다.
+
+1. 카드사별로 메뉴가 나뉘어 있어서 입금 예정 금액을 확인하려면 카드사마다 따로 들어가야 합니다. 카드사별 입금예정일과 금액을 한눈에 볼 수 있게 해 주세요.
+2. 취소된 매출이 언제 반영되는지 알 수 없어 입금액이 예상과 다를 때 문의가 많습니다. 취소 건이 바로 반영되면 좋겠습니다.
+3. 조회 결과를 엑셀로 내려받을 수 있게 해 주세요. 지금은 화면을 캡처해서 세무사에게 보내고 있습니다.
+4. 사장님들이 매장에서 휴대폰으로 많이 보십니다. 모바일에서도 빠르게 조회되도록 개선 부탁드립니다.
+5. 정산 계좌가 바뀌었을 때 문자로 알려주는 기능이 있으면 좋겠다는 의견도 있었습니다. (예: 회원사 ○○상회 정산계좌 110-234-567890 변경 시 대표자 휴대폰으로 안내)
+6. 연말 성수기 전에 쓸 수 있도록 가능하면 11월 말까지 반영을 희망합니다.
+
+문의: 김민지 대리 / 010-2345-6789 / minji.kim@example.org`
+  },
+  {
+    kind: 'meeting',
+    title: '1차 이해관계자 회의록',
+    author: '박준호 차장 (작성)',
+    date: '2026-10-14',
+    text: `■ 일시/장소: 2026-10-14(수) 14:00~15:30, 3층 소회의실 (협회는 화상 참석)
+■ 참석: 박준호 차장(사업), 이서윤 과장(개발), 최도현 대리(운영), 정하늘 과장(정보보호), 김민지 대리(협회)
+
+[안건 1] 카드사별 입금예정 통합조회
+- 박준호 차장: 협회 요청 중 가장 우선순위가 높음. 이번에 꼭 반영해야 함.
+- 이서윤 과장: 현재 카드사별 조회 API가 분리돼 있으나 조합하면 통합 화면 구현 가능. 단, 특정 카드사 데이터가 아직 안 들어온 경우 화면 처리 방식은 정해야 함.
+- 결정: 통합조회 화면 신규 개발로 수용.
+
+[안건 2] 취소 매출 반영
+- 이서윤 과장: 현 시스템은 카드사 매출 데이터를 매일 06시 배치(D+1)로만 받음. 실시간 취소 반영은 카드사 연동 규격 변경이 필요해서 이번 범위에서는 불가.
+- 김민지 대리: 실시간이 어렵다면 최소한 "언제 기준 데이터인지"라도 보여주면 문의가 줄 것 같음.
+- 결정: 실시간 반영은 차기 과제로 검토. 이번에는 데이터 기준 시각 표시로 대체.
+
+[안건 3] 엑셀 다운로드
+- 최도현 대리: 다운로드는 대량 조회가 몰리면 부하가 우려됨. 조회 기간을 적절히 제한하는 조건이면 수용 가능. 지난번 개발서버(10.20.30.41) 부하테스트에서 6개월 조회 시 응답이 크게 느려졌음.
+- 정하늘 과장: 다운로드 파일에 카드번호 전체가 나오면 안 됨. 마스킹 필수이고, 누가 언제 다운로드했는지 이력이 남아야 함.
+- 최도현 대리: 민원 대응 때문에 조회·다운로드 이력은 1년 보관이 필요함.
+- 정하늘 과장: 개인정보 최소 보관 원칙상 6개월이 적정하다고 봄. 보관 기간은 추가 협의 필요.
+- 결정: 조회 기간 최대 3개월 조건으로 엑셀 다운로드 수용. 로그 보관 기간은 미결.
+
+[안건 4] 모바일 지원
+- 이서윤 과장: 현재 포털은 PC 전용 화면. 조회 화면만 반응형으로 바꾸는 것은 가능.
+- 김민지 대리: 매장에서 바로 확인할 수 있게 빨랐으면 좋겠음.
+- (응답 속도 기준은 따로 정하지 않음)
+
+[안건 5] 정산계좌 변경 문자 알림
+- 박준호 차장: 가맹점 입장에서 유용한 기능이라 긍정적.
+- 이서윤 과장: 문자 발송은 외부 문자 발송 서비스와 별도 계약·연동이 필요함. 일정상 이번 범위에 넣기 어려움.
+- 정하늘 과장: 대표자 휴대폰 번호를 알림 목적으로 쓰려면 개인정보 수집·이용 동의 범위를 법무팀과 확인해야 함.
+- 결정 없음 (미결).
+
+[안건 6] 적용 일정
+- 김민지 대리: 11월 말까지 반영 희망.
+- 이서윤 과장: 11월은 연말 시스템 변경 동결 기간이라 1월 정기배포가 현실적임.
+- 박준호 차장: 통합조회만이라도 12월 중 긴급배포로 먼저 내보낼 수 있는지 검토 요청.
+- 결정 없음 (개발팀 검토 후 회신).
+
+■ 후속 조치
+- 이서윤 과장: 12월 긴급배포 가능 범위 검토 (10/21까지)
+- 정하늘 과장·최도현 대리: 로그 보관 기간 협의안 마련
+- 박준호 차장: 문자 알림 기능 법무 검토 의뢰`
+  },
+  {
+    kind: 'doc',
+    title: '현행 가맹점 매출조회 포털 기능 개요',
+    author: '운영 매뉴얼 발췌 (가상)',
+    date: '2026-03-02',
+    text: `1. 시스템 개요
+- 가맹점이 카드 매출, 입금 예정, 입금 내역을 조회하는 웹 포털 (PC 전용, 크롬·엣지 지원)
+- 이용자: 가맹점 대표자 계정, 직원 계정(대표자가 발급, 조회 권한만 부여 가능)
+
+2. 메뉴 구성
+- 카드사별 매출 조회 / 카드사별 입금 예정 조회 / 입금 내역 조회 / 공지사항
+- 조회 결과는 화면 출력과 인쇄만 가능 (파일 다운로드 기능 없음)
+
+3. 데이터 수신
+- 카드사 매출·취소·입금예정 데이터는 매일 06:00 일괄 수신(D+1)
+- 일부 카드사는 수신이 지연될 수 있으며, 지연 시 별도 안내 없음
+
+4. 비기능 현황
+- 동시 접속 약 500명 기준으로 설계
+- 조회 기간 제한 없음 (최대 1년 이력 보관)
+- 접속 로그는 3개월 보관
+
+5. 보안
+- 카드번호는 화면에서 앞 6자리·뒤 4자리만 표시
+- 대표자 휴대폰 번호는 본인 인증 용도로만 수집`
+  }
+];
+
+const SAMPLE_REPLY = {
+  from: '이서윤 과장, 정하늘 과장',
+  date: '2026-10-22',
+  text: `[회신] 이서윤 과장 (10/21)
+- 12월 2주차(12/10) 긴급배포로 통합조회(REQ-001)와 데이터 기준 시각 표시(REQ-002)는 가능합니다. 엑셀 다운로드와 모바일 화면은 1월 정기배포로 하겠습니다.
+- 데이터가 아직 안 들어온 카드사는 '수신 대기'로 표시하고 최종 수신 시각을 함께 보여주겠습니다.
+
+[회신] 정하늘 과장 (10/22)
+- 이력은 1년 보관하되, 6개월이 지난 이력은 별도 저장소로 옮기고 정보보호 담당자만 열람하도록 하는 조건이면 동의합니다. 최도현 대리와도 협의했습니다.
+- 직원 계정 다운로드는 대표자가 직원별로 허용한 경우에만 가능하게 해 주세요.`
+};
+
+const DEMO_V1 = {
+  project: {
+    title: '가맹점 매출조회 포털 개선',
+    summary: '가맹점이 여러 카드사의 입금예정 내역을 한 화면에서 보고, 조회 결과를 파일로 받고, 휴대폰에서도 조회할 수 있도록 매출조회 포털을 개선함. 고객 요청 6건을 회의에서 검토해 수용·조건부 수용·불가·미결로 정리함.',
+    background: '회원 가맹점의 반복 문의(입금액 차이, 카드사별 개별 조회 불편)를 줄이고 연말 성수기 전에 조회 편의를 높이기 위함.'
+  },
+  requirements: [
+    {
+      id: 'REQ-001', title: '카드사별 입금예정 통합조회', category: '기능', priority: '상', status: '수용',
+      description: '한 화면에서 전 카드사의 입금예정일, 입금예정금액, 건수를 조회함. 카드사별 소계와 전체 합계를 함께 표시함.',
+      asis: '카드사별 입금 예정 조회 메뉴가 나뉘어 있어 카드사마다 따로 조회해야 함',
+      tobe: '통합조회 화면 하나에서 전 카드사 입금예정 내역을 날짜별로 조회',
+      statusReason: '기존 카드사별 조회 API를 조합해 구현 가능(개발 확인). 회의에서 수용 결정.',
+      acceptanceCriteria: ['조회 기간 내 전 카드사 입금예정 건이 누락 없이 표시됨', '카드사별 소계와 합계가 카드사별 화면 조회 결과와 일치함', '데이터 미수신 카드사의 표시 방식 확정 필요'],
+      sources: [
+        { ref: 'S1', who: '{{김민지}} 대리', quote: '카드사별 입금예정일과 금액을 한눈에 볼 수 있게 해 주세요.' },
+        { ref: 'S2', who: '{{이서윤}} 과장', quote: '조합하면 통합 화면 구현 가능' },
+        { ref: 'S2', who: '회의 결정', quote: '통합조회 화면 신규 개발로 수용.' }
+      ]
+    },
+    {
+      id: 'REQ-002', title: '데이터 기준 시각 표시', category: '기능', priority: '중', status: '조건부 수용',
+      description: '조회 화면과 다운로드 파일에 카드사별 데이터 기준 시각(최종 수신 시각)을 표시해 취소 매출이 언제까지 반영됐는지 알 수 있게 함.',
+      asis: '매일 06시 일괄 수신(D+1)으로만 반영되고 기준 시각이 화면에 없음',
+      tobe: '화면 상단과 파일 머리글에 카드사별 최종 수신 시각 표시',
+      statusReason: '실시간 취소 반영(REQ-003)이 불가해 대체안으로 수용. 수신 지연 시 표시 방식 정의가 조건임.',
+      acceptanceCriteria: ['모든 조회 화면 상단에 카드사별 데이터 기준 시각이 표시됨', '엑셀 파일 머리글에 기준 시각이 포함됨'],
+      sources: [
+        { ref: 'S1', who: '{{김민지}} 대리', quote: '취소된 매출이 언제 반영되는지 알 수 없어' },
+        { ref: 'S2', who: '{{김민지}} 대리', quote: '최소한 "언제 기준 데이터인지"라도 보여주면 문의가 줄 것 같음.' },
+        { ref: 'S2', who: '회의 결정', quote: '이번에는 데이터 기준 시각 표시로 대체.' }
+      ]
+    },
+    {
+      id: 'REQ-003', title: '취소 매출 실시간 반영', category: '인터페이스', priority: '하', status: '불가',
+      description: '카드사의 취소 매출을 수신 즉시 입금예정 금액에 반영함.',
+      asis: '카드사 데이터를 D+1 일괄 수신',
+      tobe: '이번 범위에서 제외. 차기 과제로 카드사 연동 규격 변경 검토',
+      statusReason: '카드사 연동 규격 변경이 필요해 이번 범위에서 불가(개발). 차기 과제로 검토하기로 결정.',
+      acceptanceCriteria: ['차기 과제에서 카드사 연동 규격 협의 결과에 따라 별도 정의'],
+      sources: [
+        { ref: 'S1', who: '{{김민지}} 대리', quote: '취소 건이 바로 반영되면 좋겠습니다.' },
+        { ref: 'S2', who: '{{이서윤}} 과장', quote: '실시간 취소 반영은 카드사 연동 규격 변경이 필요해서 이번 범위에서는 불가.' },
+        { ref: 'S3', who: '운영 매뉴얼', quote: '카드사 매출·취소·입금예정 데이터는 매일 06:00 일괄 수신(D+1)' }
+      ]
+    },
+    {
+      id: 'REQ-004', title: '조회 결과 엑셀 다운로드', category: '기능', priority: '상', status: '조건부 수용',
+      description: '매출·입금예정·입금내역 조회 결과를 엑셀 파일로 내려받음. 1회 조회 기간은 최대 3개월로 제한함.',
+      asis: '화면 출력과 인쇄만 가능, 파일 다운로드 기능 없음',
+      tobe: '조회 결과 화면에 엑셀 다운로드 버튼 제공',
+      statusReason: '대량 조회 부하 우려로 조회 기간 최대 3개월 조건으로 수용(운영). 부하테스트에서 6개월 조회 시 응답 지연 확인됨.',
+      acceptanceCriteria: ['조회 기간이 3개월 이내일 때만 다운로드 버튼이 활성화됨', '파일 내용이 화면 조회 결과와 일치함'],
+      sources: [
+        { ref: 'S1', who: '{{김민지}} 대리', quote: '조회 결과를 엑셀로 내려받을 수 있게 해 주세요.' },
+        { ref: 'S2', who: '{{최도현}} 대리', quote: '조회 기간을 적절히 제한하는 조건이면 수용 가능.' },
+        { ref: 'S2', who: '회의 결정', quote: '조회 기간 최대 3개월 조건으로 엑셀 다운로드 수용.' }
+      ]
+    },
+    {
+      id: 'REQ-005', title: '다운로드 파일 카드번호 마스킹', category: '법·제도', priority: '상', status: '수용',
+      description: '다운로드 파일의 카드번호는 화면과 같은 기준(앞 6자리·뒤 4자리만 표시)으로 마스킹함.',
+      asis: '화면은 앞 6자리·뒤 4자리만 표시, 파일 다운로드 기능 없음',
+      tobe: '다운로드 파일에도 화면과 같은 마스킹 적용',
+      statusReason: '정보보호 필수 요건. 현행 화면 표시 기준과 같게 적용.',
+      acceptanceCriteria: ['다운로드 파일의 어느 셀에도 카드번호 전체가 포함되지 않음'],
+      sources: [
+        { ref: 'S2', who: '{{정하늘}} 과장', quote: '다운로드 파일에 카드번호 전체가 나오면 안 됨. 마스킹 필수' },
+        { ref: 'S3', who: '운영 매뉴얼', quote: '카드번호는 화면에서 앞 6자리·뒤 4자리만 표시' }
+      ]
+    },
+    {
+      id: 'REQ-006', title: '조회·다운로드 이력 기록과 보관', category: '운영', priority: '상', status: '미결',
+      description: '누가 언제 어떤 조건으로 조회·다운로드했는지 이력을 남기고 정한 기간 동안 보관함.',
+      asis: '접속 로그만 3개월 보관, 다운로드 이력 없음',
+      tobe: '조회·다운로드 이력 기록. 보관 기간은 협의 후 확정',
+      statusReason: '이력 기록은 합의됨. 보관 기간은 운영(1년)과 정보보호(6개월) 의견이 달라 미결.',
+      acceptanceCriteria: ['다운로드 시 사용자 ID, 일시, 조회 조건, 건수가 기록됨', '보관 기간이 지난 이력은 자동 삭제됨(기간 확정 필요)'],
+      sources: [
+        { ref: 'S2', who: '{{정하늘}} 과장', quote: '누가 언제 다운로드했는지 이력이 남아야 함.' },
+        { ref: 'S2', who: '{{최도현}} 대리', quote: '조회·다운로드 이력은 1년 보관이 필요함.' },
+        { ref: 'S2', who: '{{정하늘}} 과장', quote: '개인정보 최소 보관 원칙상 6개월이 적정하다고 봄.' },
+        { ref: 'S3', who: '운영 매뉴얼', quote: '접속 로그는 3개월 보관' }
+      ]
+    },
+    {
+      id: 'REQ-007', title: '조회 화면 모바일(반응형) 지원', category: '비기능', priority: '중', status: '수용',
+      description: '매출·입금예정 조회 화면을 휴대폰 화면 크기에 맞춰 반응형으로 제공함.',
+      asis: 'PC 전용 화면(크롬·엣지 지원)',
+      tobe: '조회 화면을 반응형으로 전환. 관리·설정 화면은 범위 외',
+      statusReason: '조회 화면에 한정해 반응형 전환 가능(개발).',
+      acceptanceCriteria: ['화면 폭 360px 이상 휴대폰에서 가로 스크롤 없이 조회됨'],
+      sources: [
+        { ref: 'S1', who: '{{김민지}} 대리', quote: '사장님들이 매장에서 휴대폰으로 많이 보십니다.' },
+        { ref: 'S2', who: '{{이서윤}} 과장', quote: '조회 화면만 반응형으로 바꾸는 것은 가능.' },
+        { ref: 'S3', who: '운영 매뉴얼', quote: 'PC 전용, 크롬·엣지 지원' }
+      ]
+    },
+    {
+      id: 'REQ-008', title: '조회 응답 시간 기준', category: '비기능', priority: '중', status: '미결',
+      description: '통합조회와 모바일 조회의 응답 시간 목표를 수치로 정함.',
+      asis: '응답 시간 기준 없음(동시 접속 약 500명 기준 설계)',
+      tobe: '예: 3개월 조회 기준 응답 3초 이내(95%). 기준 확정 필요',
+      statusReason: '고객은 "빠르게"를 요청했으나 회의에서 기준을 정하지 않음.',
+      acceptanceCriteria: ['확정된 기준 조건에서 성능 시험을 통과함'],
+      sources: [
+        { ref: 'S1', who: '{{김민지}} 대리', quote: '모바일에서도 빠르게 조회되도록 개선 부탁드립니다.' },
+        { ref: 'S2', who: '회의록', quote: '(응답 속도 기준은 따로 정하지 않음)' },
+        { ref: 'S3', who: '운영 매뉴얼', quote: '동시 접속 약 500명 기준으로 설계' }
+      ]
+    },
+    {
+      id: 'REQ-009', title: '정산계좌 변경 문자 알림', category: '인터페이스', priority: '하', status: '미결',
+      description: '가맹점 정산 계좌가 바뀌면 대표자 휴대폰으로 안내 문자를 보냄.',
+      asis: '기능 없음. 대표자 휴대폰 번호는 본인 인증 용도로만 수집',
+      tobe: '문자 발송 서비스 연동 후 변경 알림 발송(범위·일정 미정)',
+      statusReason: '외부 문자 발송 서비스 계약·연동 필요(개발). 개인정보 이용 동의 범위 법무 확인 필요(정보보호).',
+      acceptanceCriteria: ['범위 확정 후 정의'],
+      sources: [
+        { ref: 'S1', who: '{{김민지}} 대리', quote: '정산 계좌가 바뀌었을 때 문자로 알려주는 기능이 있으면 좋겠다' },
+        { ref: 'S2', who: '{{이서윤}} 과장', quote: '외부 문자 발송 서비스와 별도 계약·연동이 필요함.' },
+        { ref: 'S2', who: '{{정하늘}} 과장', quote: '개인정보 수집·이용 동의 범위를 법무팀과 확인해야 함.' },
+        { ref: 'S3', who: '운영 매뉴얼', quote: '대표자 휴대폰 번호는 본인 인증 용도로만 수집' }
+      ]
+    },
+    {
+      id: 'REQ-010', title: '요구사항별 적용 일정', category: '운영', priority: '상', status: '미결',
+      description: '요구사항별 적용(배포) 차수와 일자를 정함.',
+      asis: '11월은 연말 시스템 변경 동결 기간',
+      tobe: '배포 일정안 확정 필요(11월 말 / 12월 긴급배포 / 1월 정기배포)',
+      statusReason: '고객·사업·개발 의견이 서로 다름. 개발팀 검토 후 회신 예정.',
+      acceptanceCriteria: ['요구사항별 배포 차수가 확정됨'],
+      sources: [
+        { ref: 'S1', who: '{{김민지}} 대리', quote: '가능하면 11월 말까지 반영을 희망합니다.' },
+        { ref: 'S2', who: '{{이서윤}} 과장', quote: '11월은 연말 시스템 변경 동결 기간이라 1월 정기배포가 현실적임.' },
+        { ref: 'S2', who: '{{박준호}} 차장', quote: '통합조회만이라도 12월 중 긴급배포로 먼저 내보낼 수 있는지 검토 요청.' }
+      ]
+    }
+  ],
+  meeting: {
+    decisions: [
+      { text: '통합조회 화면 신규 개발로 수용', ref: 'S2' },
+      { text: '실시간 취소 반영은 차기 과제로 검토, 이번에는 데이터 기준 시각 표시로 대체', ref: 'S2' },
+      { text: '조회 기간 최대 3개월 조건으로 엑셀 다운로드 수용', ref: 'S2' },
+      { text: '다운로드 파일 카드번호 마스킹과 다운로드 이력 기록은 필수로 반영', ref: 'S2' }
+    ],
+    openIssues: [
+      { text: '조회·다운로드 이력 보관 기간(1년 vs 6개월)', owner: '{{정하늘}} 과장, {{최도현}} 대리', ref: 'S2' },
+      { text: '요구사항별 적용 일정(11월 말 / 12월 긴급 / 1월 정기)', owner: '{{이서윤}} 과장', ref: 'S2' },
+      { text: '정산계좌 변경 문자 알림 포함 여부와 개인정보 이용 동의 범위', owner: '{{박준호}} 차장', ref: 'S2' },
+      { text: '조회 응답 시간 목표 수치', owner: '미지정', ref: 'S2' },
+      { text: '데이터 미수신 카드사의 통합조회 표시 방식', owner: '{{이서윤}} 과장', ref: 'S2' }
+    ],
+    actionItems: [
+      { task: '12월 긴급배포 가능 범위 검토', owner: '{{이서윤}} 과장', due: '10/21', ref: 'S2' },
+      { task: '로그 보관 기간 협의안 마련', owner: '{{정하늘}} 과장, {{최도현}} 대리', due: '미정', ref: 'S2' },
+      { task: '문자 알림 기능 법무 검토 의뢰', owner: '{{박준호}} 차장', due: '미정', ref: 'S2' }
+    ]
+  },
+  checks: {
+    missing: [
+      { reqId: 'REQ-001', item: '예외 처리', detail: '카드사 데이터가 미수신·지연된 경우 통합조회 화면에 어떻게 보일지 정하지 않음. 현행도 지연 시 별도 안내가 없음.', suggestion: "미수신 카드사는 '수신 대기'로 표시하고 최종 수신 시각을 함께 보여줌", ref: 'S3' },
+      { reqId: 'REQ-004', item: '권한', detail: '직원 계정에 다운로드를 허용할지 정하지 않음. 현행 직원 계정은 조회 권한만 가짐.', suggestion: '대표자만 다운로드 허용을 기본으로 하고, 대표자가 직원별로 허용할 수 있게 할지 결정', ref: 'S3' },
+      { reqId: 'REQ-004', item: '처리 한도', detail: '1회 다운로드 최대 건수 기준이 없음. 조회 기간만 3개월로 제한함.', suggestion: '1회 다운로드 최대 건수(예: 10만 건)와 초과 시 안내 문구 정의', ref: 'S2' },
+      { reqId: 'REQ-007', item: '지원 환경', detail: '모바일 지원 OS·브라우저 범위가 없음.', suggestion: '지원 범위 명시(예: 최근 2개 버전의 안드로이드 크롬, iOS 사파리)', ref: 'S3' },
+      { reqId: '', item: '데이터 보관', detail: '조회 기간 제한(3개월)과 현행 이력 보관(1년)의 관계가 불명확함. 3개월을 넘는 과거 내역을 화면에서 볼 수 있는지 정해지지 않음.', suggestion: '화면 조회는 1년 이내 3개월 단위로 가능하다고 명시', ref: 'S3' }
+    ],
+    conflicts: [
+      {
+        topic: '적용 일정', reqIds: ['REQ-010', 'REQ-001'],
+        positions: [
+          { who: '{{김민지}} 대리 (협회)', stance: '11월 말까지 반영 희망', ref: 'S1' },
+          { who: '{{박준호}} 차장 (사업)', stance: '통합조회만이라도 12월 중 긴급배포', ref: 'S2' },
+          { who: '{{이서윤}} 과장 (개발)', stance: '11월 동결 기간, 1월 정기배포가 현실적', ref: 'S2' }
+        ],
+        suggestion: '통합조회(REQ-001)와 기준 시각 표시(REQ-002)는 12월 긴급배포 1차, 나머지는 1월 정기배포 2차로 나누는 단계적 일정안을 개발팀에 확인'
+      },
+      {
+        topic: '이력 보관 기간', reqIds: ['REQ-006'],
+        positions: [
+          { who: '{{최도현}} 대리 (운영)', stance: '민원 대응을 위해 1년 보관 필요', ref: 'S2' },
+          { who: '{{정하늘}} 과장 (정보보호)', stance: '개인정보 최소 보관 원칙상 6개월 적정', ref: 'S2' }
+        ],
+        suggestion: '1년 보관하되 6개월이 지난 이력은 분리 보관하고 열람 권한을 제한하는 절충안 검토'
+      },
+      {
+        topic: '문자 알림 포함 여부', reqIds: ['REQ-009'],
+        positions: [
+          { who: '{{박준호}} 차장 (사업)', stance: '유용한 기능이라 긍정적', ref: 'S2' },
+          { who: '{{이서윤}} 과장 (개발)', stance: '외부 서비스 계약·연동이 필요해 이번 범위에 넣기 어려움', ref: 'S2' }
+        ],
+        suggestion: '이번 범위에서 빼고, 법무 검토 결과를 받은 뒤 차기 과제로 등록'
+      }
+    ],
+    ambiguous: [
+      { phrase: '한눈에 볼 수 있게', reqId: 'REQ-001', ref: 'S1', suggestion: '카드사별 입금예정일·금액·건수를 한 화면의 표로 보여주고 합계 행을 둠' },
+      { phrase: '모바일에서도 빠르게 조회', reqId: 'REQ-008', ref: 'S1', suggestion: '3개월 조회 기준 응답 3초 이내(95백분위), 동시 접속 500명 조건' },
+      { phrase: '조회 기간을 적절히 제한', reqId: 'REQ-004', ref: 'S2', suggestion: '1회 조회 기간 최대 3개월, 1회 다운로드 최대 10만 건' },
+      { phrase: '취소 건이 바로 반영', reqId: 'REQ-003', ref: 'S1', suggestion: '차기 과제 정의 시 "취소 수신 후 10분 이내 반영"처럼 시간 기준으로 표현' }
+    ],
+    questions: [
+      {
+        to: '{{김민지}} 대리', role: '소상공인가맹점협회 (고객)',
+        items: [
+          { q: '11월 말 전체 반영이 어려운 경우, 통합조회(REQ-001)와 기준 시각 표시(REQ-002)를 12월에 먼저 적용하고 나머지는 1월에 적용해도 괜찮으신지요?', reqIds: ['REQ-010'], why: '고객·사업·개발 일정 의견이 다름' },
+          { q: '매장에서 "빠르다"고 느끼시는 기준(예: 3초 이내)과 사장님들이 주로 쓰는 휴대폰 환경(안드로이드/아이폰)을 알려주실 수 있을까요?', reqIds: ['REQ-008', 'REQ-007'], why: '응답 시간과 지원 환경 기준이 없음' }
+        ]
+      },
+      {
+        to: '{{이서윤}} 과장', role: '개발',
+        items: [
+          { q: '12월 긴급배포에 REQ-001과 REQ-002를 함께 넣을 수 있는지, 가능하다면 배포 일자를 알려주세요.', reqIds: ['REQ-010'], why: '적용 일정 미결' },
+          { q: '카드사 데이터가 아직 안 들어온 경우 통합조회 화면에 어떻게 표시할지 제안 부탁드립니다.', reqIds: ['REQ-001'], why: '예외 처리 누락' },
+          { q: '3개월 조회 기준 응답 3초 이내(95%) 목표를 맞출 수 있는지요?', reqIds: ['REQ-008'], why: '성능 기준 미정' }
+        ]
+      },
+      {
+        to: '{{정하늘}} 과장, {{최도현}} 대리', role: '정보보호·운영',
+        items: [
+          { q: '조회·다운로드 이력을 1년 보관하되, 6개월이 지난 이력은 분리 보관하고 열람을 제한하는 절충안에 동의하시는지요?', reqIds: ['REQ-006'], why: '보관 기간 의견 충돌' },
+          { q: '직원 계정에도 다운로드를 허용할지, 대표자만 허용할지 의견 부탁드립니다.', reqIds: ['REQ-004'], why: '권한 정의 누락' }
+        ]
+      },
+      {
+        to: '{{박준호}} 차장', role: '사업',
+        items: [
+          { q: '문자 알림(REQ-009)은 이번 범위에서 빼고, 법무 검토 후 차기 과제로 등록하는 방안에 동의하시는지요?', reqIds: ['REQ-009'], why: '포함 여부 의견 충돌, 법무 검토 필요' }
+        ]
+      }
+    ]
+  }
+};
+
+// AI 판단 근거(설명 가능성): 왜 뽑았고, 왜 그렇게 분류·판단했는지
+const DEMO_RATIONALE = {
+  'REQ-001': { quality: '기능적합성', difficulty: '중', confidence: '높음', rationale: { extract: '고객 메일 1번 요청을 그대로 옮김. 회의 안건 1에서 같은 주제를 논의함.', classify: '화면 기능 신설이라 기능. 사업 담당이 "가장 우선순위가 높음"이라고 해서 상.', decide: '회의 결정 "통합조회 화면 신규 개발로 수용"을 따름. 미수신 카드사 표시 방식은 정해지지 않아 검수 기준에 확인 필요로 남김.' } },
+  'REQ-002': { quality: '기능적합성', difficulty: '하', confidence: '높음', rationale: { extract: '고객 요청에는 없고 회의에서 실시간 반영(REQ-003)의 대체안으로 나와 별도 요구사항으로 분리함.', classify: '화면 표시 기능이라 기능. 대체안이고 고객이 "최소한"이라고 표현해 중.', decide: '회의 결정 "데이터 기준 시각 표시로 대체"로 수용하되, 수신 지연 시 표시 방식이 정해지지 않아 조건부 수용.' } },
+  'REQ-003': { quality: '호환성', difficulty: '상', confidence: '높음', rationale: { extract: '고객 메일 2번 요청. 불가 결정이 났어도 요청 이력을 남기려고 요구사항으로 유지함.', classify: '카드사 연동 규격 변경이 핵심이라 인터페이스. 이번 범위에서 빠져 하.', decide: '개발 담당의 불가 의견과 회의 결정 "차기 과제로 검토"를 따름. 참고 문서의 D+1 일괄 수신 구조와도 맞음.' } },
+  'REQ-004': { quality: '기능적합성', difficulty: '중', confidence: '높음', rationale: { extract: '고객 메일 3번 요청. 참고 문서에 "파일 다운로드 기능 없음"으로 현행이 확인됨.', classify: '신규 기능. 고객이 화면 캡처로 대신하고 있어 불편이 커서 상.', decide: '회의 결정 "조회 기간 최대 3개월 조건으로 수용"을 따라 조건부 수용. 부하테스트 결과를 조건의 근거로 적음.' } },
+  'REQ-005': { quality: '보안성', difficulty: '하', confidence: '높음', rationale: { extract: '고객은 요청하지 않았으나 정보보호 담당이 회의에서 "마스킹 필수"라고 해서 추가함.', classify: '정보보호 준수 요건이라 법·제도. 필수 요건이라 상.', decide: '반대 의견이 없고 현행 화면 표시 기준(앞 6자리·뒤 4자리)이 있어 수용.' } },
+  'REQ-006': { quality: '보안성', difficulty: '중', confidence: '보통', rationale: { extract: '정보보호 담당의 다운로드 이력 요구와 운영 담당의 보관 기간 발언을 묶음.', classify: '로그 보관 정책이라 운영. 정보보호·민원 대응과 관련돼 상.', decide: '이력 기록 자체는 합의됐지만 보관 기간이 1년(운영)과 6개월(정보보호)로 갈리고 회의 결정이 "미결"이라 미결.' } },
+  'REQ-007': { quality: '사용성', difficulty: '중', confidence: '높음', rationale: { extract: '고객 메일 4번 요청 중 "휴대폰으로 조회" 부분.', classify: '화면 지원 환경 확대라 비기능. 중.', decide: '개발 담당이 "조회 화면만 반응형 가능"이라고 해서 범위를 조회 화면으로 한정해 수용. 회의 결정 문장은 없어 확신도는 개발 의견에 근거함.' } },
+  'REQ-008': { quality: '성능효율성', difficulty: '중', confidence: '보통', rationale: { extract: '고객 메일 4번 요청 중 "빠르게" 부분을 성능 요구사항으로 분리함.', classify: '응답 시간이라 비기능. 중.', decide: '회의록에 "응답 속도 기준은 따로 정하지 않음"이 있어 미결. "빠르게"는 검수할 수 없는 표현이라 모호한 표현으로도 표시함.' } },
+  'REQ-009': { quality: '호환성', difficulty: '상', confidence: '높음', rationale: { extract: '고객 메일 5번 요청. 고객이 "의견도 있었다"고 덧붙인 수준이라 우선순위를 낮게 봄.', classify: '외부 문자 발송 연동이 필요해 인터페이스. 하.', decide: '회의에서 "결정 없음(미결)"으로 끝남. 사업은 긍정, 개발은 일정상 어려움, 정보보호는 동의 범위 확인 필요로 의견이 갈림.' } },
+  'REQ-010': { quality: '해당 없음', difficulty: '중', confidence: '보통', rationale: { extract: '고객 메일 6번의 일정 희망과 회의 안건 6을 하나로 묶음.', classify: '배포 일정이라 운영. 고객이 성수기 전 적용을 원해 상.', decide: '고객(11월 말), 개발(1월 정기배포), 사업(12월 긴급배포 검토) 의견이 다르고 "개발팀 검토 후 회신"으로 끝나 미결.' } }
+};
+DEMO_V1.requirements.forEach(r => Object.assign(r, DEMO_RATIONALE[r.id]));
+
+// 예시 회신(S4)을 반영한 결과. DEMO_V1에서 바뀐 부분만 고칩니다.
+function buildDemoV2() {
+  const v = JSON.parse(JSON.stringify(DEMO_V1));
+  const R = id => v.requirements.find(r => r.id === id);
+  const reply = (who, quote) => ({ ref: 'S4', who, quote });
+
+  const r1 = R('REQ-001');
+  r1.acceptanceCriteria[2] = "데이터 미수신 카드사는 '수신 대기'와 최종 수신 시각이 함께 표시됨";
+  r1.statusReason += ' 12/10 긴급배포(1차) 대상.';
+  r1.rationale.decide += ' 회신(S4)으로 미수신 카드사 표시 방식이 정해져 검수 기준을 보완함.';
+  r1.sources.push(reply('{{이서윤}} 과장', "데이터가 아직 안 들어온 카드사는 '수신 대기'로 표시하고 최종 수신 시각을 함께 보여주겠습니다."));
+
+  const r2 = R('REQ-002');
+  r2.statusReason += ' 12/10 긴급배포(1차) 대상.';
+
+  const r4 = R('REQ-004');
+  r4.acceptanceCriteria.push('대표자가 허용한 직원 계정에서만 다운로드 버튼이 보임');
+  r4.rationale.decide += ' 회신(S4)의 직원 계정 권한 조건을 검수 기준에 추가함.';
+  r4.sources.push(reply('{{정하늘}} 과장', '직원 계정 다운로드는 대표자가 직원별로 허용한 경우에만 가능하게 해 주세요.'));
+
+  const r6 = R('REQ-006');
+  r6.status = '조건부 수용';
+  r6.tobe = '조회·다운로드 이력 1년 보관. 6개월이 지난 이력은 별도 저장소로 옮기고 정보보호 담당자만 열람';
+  r6.statusReason = '운영·정보보호 협의로 1년 보관 + 6개월 경과분 분리 보관·열람 제한 조건에 합의.';
+  r6.acceptanceCriteria = ['다운로드 시 사용자 ID, 일시, 조회 조건, 건수가 기록됨', '6개월이 지난 이력은 분리 저장소로 옮겨지고 정보보호 담당자만 열람 가능함', '1년이 지난 이력은 자동 삭제됨'];
+  r6.sources.push(reply('{{정하늘}} 과장', '6개월이 지난 이력은 별도 저장소로 옮기고 정보보호 담당자만 열람하도록 하는 조건이면 동의합니다.'));
+  r6.confidence = '높음';
+  r6.rationale.decide = '정보보호 담당 회신(S4)에서 운영 담당과 협의한 절충안(1년 보관, 6개월 경과분 분리)에 동의해 조건부 수용으로 바꿈.';
+
+  const r10 = R('REQ-010');
+  r10.status = '수용';
+  r10.tobe = '1차 12/10 긴급배포: REQ-001, REQ-002 / 2차 1월 정기배포: REQ-004~REQ-008, REQ-011';
+  r10.statusReason = '개발팀 회신으로 단계적 배포 확정.';
+  r10.acceptanceCriteria = ['1차 배포(12/10)에 REQ-001, REQ-002가 포함됨', '2차 배포(1월 정기배포)에 나머지 수용 요구사항이 포함됨'];
+  r10.sources.push(reply('{{이서윤}} 과장', '12월 2주차(12/10) 긴급배포로 통합조회(REQ-001)와 데이터 기준 시각 표시(REQ-002)는 가능합니다.'));
+  r10.confidence = '높음';
+  r10.rationale.decide = '개발 담당 회신(S4)으로 단계적 배포 일정이 확정돼 수용으로 바꿈. 고객(11월 말 희망)에게 바뀐 일정을 안내하는 확인 질문을 남김.';
+
+  v.requirements.push({
+    id: 'REQ-011', title: '직원 계정 다운로드 권한 위임', category: '기능', priority: '중', status: '수용',
+    description: '대표자가 직원 계정별로 다운로드 허용 여부를 설정함. 기본값은 허용 안 함.',
+    asis: '직원 계정은 조회 권한만 가짐',
+    tobe: '대표자 화면에서 직원별 다운로드 허용 설정',
+    statusReason: '정보보호 회신으로 추가됨. 대표자가 허용한 경우에만 다운로드 가능.',
+    acceptanceCriteria: ['대표자가 허용하지 않은 직원 계정에는 다운로드 버튼이 보이지 않음', '권한 변경 이력이 기록됨'],
+    quality: '보안성', difficulty: '하',
+    confidence: '높음',
+    rationale: { extract: '정보보호 담당 회신(S4)에서 새로 나온 요구. 1차 점검의 "권한" 누락 항목에 대한 답이기도 함.', classify: '권한 설정 기능이라 기능. 다운로드(REQ-004)의 전제 조건이라 중.', decide: '회신에서 조건을 명확히 제시했고 반대 의견이 없어 수용.' },
+    sources: [reply('{{정하늘}} 과장', '직원 계정 다운로드는 대표자가 직원별로 허용한 경우에만 가능하게 해 주세요.'), { ref: 'S3', who: '운영 매뉴얼', quote: '직원 계정(대표자가 발급, 조회 권한만 부여 가능)' }]
+  });
+
+  v.meeting.decisions.push(
+    { text: '단계적 배포: 1차 12/10 긴급배포(REQ-001, REQ-002), 2차 1월 정기배포', ref: 'S4' },
+    { text: '이력 1년 보관, 6개월 경과분은 분리 보관·정보보호 담당자만 열람', ref: 'S4' },
+    { text: '직원 계정 다운로드는 대표자가 허용한 경우에만 가능', ref: 'S4' }
+  );
+  v.meeting.openIssues = v.meeting.openIssues.filter(o => !/보관 기간|적용 일정|표시 방식/.test(o.text));
+  v.meeting.actionItems[0].due = '완료(10/21 회신)';
+  v.meeting.actionItems[1].due = '완료(10/22 회신)';
+
+  v.checks.missing = v.checks.missing.filter(m => !(m.reqId === 'REQ-001' || m.item === '권한'));
+  v.checks.conflicts = v.checks.conflicts.filter(c => c.topic === '문자 알림 포함 여부');
+  v.checks.questions = [
+    {
+      to: '{{김민지}} 대리', role: '소상공인가맹점협회 (고객)',
+      items: [
+        { q: '통합조회와 기준 시각 표시는 12/10에 먼저 적용하고, 엑셀 다운로드와 모바일 화면은 1월 정기배포로 적용하기로 했습니다. 이 일정으로 회원사에 안내해도 될지요?', reqIds: ['REQ-010'], why: '고객 희망 일정(11월 말)과 다름' },
+        { q: '매장에서 "빠르다"고 느끼시는 기준(예: 3초 이내)과 주로 쓰는 휴대폰 환경을 알려주실 수 있을까요?', reqIds: ['REQ-008', 'REQ-007'], why: '응답 시간과 지원 환경 기준이 없음' }
+      ]
+    },
+    {
+      to: '{{박준호}} 차장', role: '사업',
+      items: [
+        { q: '문자 알림(REQ-009)은 이번 범위에서 빼고, 법무 검토 후 차기 과제로 등록하는 방안에 동의하시는지요?', reqIds: ['REQ-009'], why: '포함 여부 의견 충돌, 법무 검토 필요' }
+      ]
+    }
+  ];
+
+  v.changes = [
+    { type: '변경', reqId: 'REQ-010', summary: '수용 여부 미결 → 수용: 1차 12/10 긴급배포(REQ-001, REQ-002), 2차 1월 정기배포' },
+    { type: '변경', reqId: 'REQ-006', summary: '수용 여부 미결 → 조건부 수용: 1년 보관, 6개월 경과분 분리 보관·열람 제한' },
+    { type: '변경', reqId: 'REQ-001', summary: "검수 기준 보완: 미수신 카드사는 '수신 대기'와 최종 수신 시각 표시" },
+    { type: '변경', reqId: 'REQ-004', summary: '검수 기준 추가: 대표자가 허용한 직원 계정만 다운로드' },
+    { type: '추가', reqId: 'REQ-011', summary: '직원 계정 다운로드 권한 위임 요구사항 신규 추가' },
+    { type: '해결', reqId: '', summary: '충돌 2건(적용 일정, 이력 보관 기간)과 누락 2건(예외 처리, 권한) 해소' }
+  ];
+  return v;
+}
+
+// ───────── 공통 유틸 ─────────
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clone = o => JSON.parse(JSON.stringify(o));
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const nowStamp = () => { const d = new Date(); return `${today()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+const fmtNum = n => Number(n || 0).toLocaleString('ko-KR');
+
+const CATEGORIES = ['기능', '비기능', '법·제도', '운영', '인터페이스', '데이터'];
+const STATUSES = ['수용', '조건부 수용', '불가', '미결'];
+const PRIORITIES = ['상', '중', '하'];
+const STATUS_CLASS = { '수용': 'ok', '조건부 수용': 'cond', '불가': 'no', '미결': 'open' };
+const CONFIDENCE = ['높음', '보통', '낮음'];
+// 요구사항명세서의 품질속성: ISO/IEC 25010 품질 특성
+const QUALITIES = ['기능적합성', '성능효율성', '호환성', '사용성', '신뢰성', '보안성', '유지보수성', '이식성', '해당 없음'];
+const QUALITY_BY_CATEGORY = { '기능': '기능적합성', '비기능': '성능효율성', '법·제도': '보안성', '운영': '유지보수성', '인터페이스': '호환성', '데이터': '신뢰성' };
+
+// ───────── 민감정보 마스킹 ─────────
+// 우선순위 순서대로 찾고, 앞에서 찾은 구간과 겹치면 버립니다.
+const TITLES = '대리|차장|과장|부장|팀장|주임|사원|선임|책임|수석|이사|본부장|실장|변호사|매니저|위원|원장|국장|님';
+const NAME_STOP = new Set(['담당자', '대표자', '관리자', '사용자', '이용자', '고객님', '요청자', '작성자', '참석자', '책임자', '협회장', '부서장', '운영팀', '개발팀', '사업팀']);
+const MASK_RULES = [
+  { type: '주민번호', re: /\b\d{6}-?[1-4]\d{6}\b/g },
+  { type: '카드번호', re: /\b\d{4}[- ]\d{4}[- ]\d{4}[- ]\d{4}\b|\b\d{16}\b/g },
+  { type: '이메일', re: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g },
+  { type: '휴대폰', re: /\b01[016789]-?\d{3,4}-?\d{4}\b/g },
+  { type: '전화번호', re: /\b0(?:2|[3-6][1-5]|70)-\d{3,4}-\d{4}\b/g },
+  { type: '사업자번호', re: /\b\d{3}-\d{2}-\d{5}\b/g },
+  { type: '계좌번호', re: /\b\d{2,6}-\d{2,6}-\d{2,7}(?:-\d{1,3})?\b/g, ok: v => { const n = v.replace(/\D/g, '').length; return n >= 10 && n <= 16; } },
+  { type: 'IP주소', re: /\b(?:\d{1,3}\.){3}\d{1,3}\b/g, ok: v => v.split('.').every(x => +x <= 255) },
+  { type: '이름', re: new RegExp(`(?<![가-힣])[가-힣]{3}(?=\\s?(?:${TITLES}))`, 'g'), ok: v => !NAME_STOP.has(v) }
+];
+const MASK_TYPES = ['지정어', ...MASK_RULES.map(r => r.type)];
+const TOKEN_RE = /\[([가-힣A-Za-z]+)-(\d+)\]/g;
+
+function createMasker() {
+  return { items: new Map(), byToken: new Map(), counters: {}, custom: [] };
+}
+
+function maskKey(type, value) { return type + '\u0001' + value; }
+
+function ensureItem(M, type, value) {
+  const key = maskKey(type, value);
+  let it = M.items.get(key);
+  if (!it) {
+    M.counters[type] = (M.counters[type] || 0) + 1;
+    it = { key, type, value, token: `[${type}-${M.counters[type]}]`, on: true };
+    M.items.set(key, it);
+    M.byToken.set(it.token, it);
+  }
+  return it;
+}
+
+// 텍스트에서 민감정보 구간을 찾습니다. 토큰은 이때 처음 번호가 붙고 이후 고정됩니다.
+function findSpans(M, text) {
+  const spans = [];
+  const taken = (s, e) => spans.some(x => s < x.end && e > x.start);
+  for (const w of M.custom) {
+    if (!w) continue;
+    let i = 0;
+    while ((i = text.indexOf(w, i)) !== -1) {
+      if (!taken(i, i + w.length)) spans.push({ start: i, end: i + w.length, type: '지정어', value: w });
+      i += w.length;
+    }
+  }
+  for (const rule of MASK_RULES) {
+    rule.re.lastIndex = 0;
+    let m;
+    while ((m = rule.re.exec(text))) {
+      const v = m[0];
+      if (rule.ok && !rule.ok(v)) continue;
+      if (!taken(m.index, m.index + v.length)) spans.push({ start: m.index, end: m.index + v.length, type: rule.type, value: v });
+    }
+  }
+  spans.sort((a, b) => a.start - b.start);
+  for (const s of spans) s.item = ensureItem(M, s.type, s.value);
+  return spans;
+}
+
+function maskText(M, text) {
+  const spans = findSpans(M, text);
+  let out = '', pos = 0;
+  for (const s of spans) {
+    out += text.slice(pos, s.start) + (s.item.on ? s.item.token : s.value);
+    pos = s.end;
+  }
+  return out + text.slice(pos);
+}
+
+function maskPreviewHTML(M, text) {
+  const spans = findSpans(M, text);
+  let out = '', pos = 0;
+  for (const s of spans) {
+    out += esc(text.slice(pos, s.start));
+    out += s.item.on
+      ? `<span class="redact" title="${esc(s.item.type)}: AI에 보내지 않음">${esc(s.item.token)}</span>`
+      : `<span class="unmasked" title="가리지 않음: 원문 그대로 전송">${esc(s.value)}</span>`;
+    pos = s.end;
+  }
+  return out + esc(text.slice(pos));
+}
+
+// 결과 문장의 토큰을 원래 값으로 되돌립니다. 이 브라우저 안에서만 일어납니다.
+function unmask(M, text) {
+  return String(text ?? '').replace(TOKEN_RE, t => { const it = M.byToken.get(t); return it ? it.value : t; });
+}
+
+// 화면 표시용: 토큰을 칩으로 바꾸거나(가림 표시) 원래 값으로 강조(복원 표시)합니다.
+function richText(M, text, showOriginal) {
+  return esc(text).replace(TOKEN_RE, t => {
+    const it = M.byToken.get(t);
+    if (!it) return t;
+    return showOriginal
+      ? `<span class="restored" title="${esc(it.token)} · 이 브라우저에서만 복원">${esc(it.value)}</span>`
+      : `<span class="tok">${esc(it.token)}</span>`;
+  });
+}
+
+// ───────── 실행 설정 ─────────
+// serve.py로 실행하면 /config.js가 window.REQAI_CONFIG를 채웁니다(settings.json 내용 중 브라우저에 필요한 부분만).
+// claude.ai나 파일로 바로 열면 비어 있고, 이때는 CDN 라이브러리와 claude.ai AI(또는 예시 모드)를 씁니다.
+const APP_VERSION = '1.1.0';
+const CFG = Object.assign({ llm: null, libBase: '' }, window.REQAI_CONFIG || {});
+
+// ───────── 파일에서 글자 뽑기 ─────────
+// libBase가 있으면(폐쇄망) vendor 폴더의 같은 파일을 씁니다. fetch_vendor.py가 이 목록대로 내려받습니다.
+const LIB_FILES = {
+  pdf: 'pdf.js/3.11.174/pdf.min.js',
+  pdfWorker: 'pdf.js/3.11.174/pdf.worker.min.js',
+  mammoth: 'mammoth/1.6.0/mammoth.browser.min.js',
+  jszip: 'jszip/3.10.1/jszip.min.js',
+  xlsx: 'xlsx/0.18.5/xlsx.full.min.js'
+};
+const CDN = Object.fromEntries(Object.entries(LIB_FILES).map(([k, f]) => [k, CFG.libBase ? CFG.libBase + f.split('/').pop() : 'https://cdnjs.cloudflare.com/ajax/libs/' + f]));
+const scriptCache = {};
+function loadScript(url) {
+  if (!scriptCache[url]) {
+    scriptCache[url] = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = url; s.async = true;
+      s.onload = resolve;
+      s.onerror = () => { delete scriptCache[url]; reject(new Error(CFG.libBase ? `라이브러리 파일(${url})이 없습니다. fetch_vendor.py로 vendor 폴더를 채우세요.` : '라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하세요.')); };
+      document.head.appendChild(s);
+    });
+  }
+  return scriptCache[url];
+}
+
+function decodeXml(s) {
+  return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n)).replace(/&amp;/g, '&');
+}
+function xmlToText(xml, paraTag) {
+  return decodeXml(xml.replace(new RegExp(`</${paraTag}>`, 'g'), '\n').replace(/<[^>]+>/g, '')).replace(/\n{3,}/g, '\n\n').trim();
+}
+
+async function extractText(file) {
+  const name = file.name.toLowerCase();
+  const ext = name.split('.').pop();
+  if (['txt', 'md', 'csv', 'json', 'eml', 'log', 'tsv'].includes(ext)) return (await file.text()).trim();
+  if (ext === 'pdf') {
+    await loadScript(CDN.pdf);
+    await loadScript(CDN.pdfWorker); // 워커를 메인 스레드에서 돌립니다(외부 워커 차단 환경 대응)
+    const lib = window.pdfjsLib;
+    lib.GlobalWorkerOptions.workerSrc = CDN.pdfWorker;
+    const pdf = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+    const pages = [];
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const tc = await (await pdf.getPage(p)).getTextContent();
+      let line = '', lastY = null;
+      const lines = [];
+      for (const it of tc.items) {
+        const y = it.transform ? Math.round(it.transform[5]) : null;
+        if (lastY !== null && y !== null && Math.abs(y - lastY) > 2) { lines.push(line); line = ''; }
+        line += it.str; lastY = y;
+        if (it.hasEOL) { lines.push(line); line = ''; lastY = null; }
+      }
+      if (line) lines.push(line);
+      pages.push(`[${p}쪽]\n` + lines.join('\n'));
+    }
+    const text = pages.join('\n\n').trim();
+    if (text.replace(/\[\d+쪽\]/g, '').trim().length < 10) throw new Error('PDF에서 글자를 찾지 못했습니다. 스캔 이미지 PDF는 지원하지 않습니다.');
+    return text;
+  }
+  if (ext === 'docx') {
+    await loadScript(CDN.mammoth);
+    const r = await window.mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+    return r.value.trim();
+  }
+  if (['xlsx', 'xls', 'xlsm'].includes(ext)) {
+    await loadScript(CDN.xlsx);
+    const wb = window.XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    return wb.SheetNames.map(n => `[시트: ${n}]\n` + window.XLSX.utils.sheet_to_csv(wb.Sheets[n], { blankrows: false })).join('\n\n').trim();
+  }
+  if (ext === 'pptx') {
+    await loadScript(CDN.jszip);
+    const zip = await window.JSZip.loadAsync(await file.arrayBuffer());
+    const slides = Object.keys(zip.files).filter(f => /^ppt\/slides\/slide\d+\.xml$/.test(f))
+      .sort((a, b) => +a.match(/\d+/)[0] - +b.match(/\d+/)[0]);
+    const out = [];
+    for (const [i, f] of slides.entries()) out.push(`[슬라이드 ${i + 1}]\n` + xmlToText(await zip.file(f).async('string'), 'a:p'));
+    return out.join('\n\n').trim();
+  }
+  if (ext === 'hwpx') {
+    await loadScript(CDN.jszip);
+    const zip = await window.JSZip.loadAsync(await file.arrayBuffer());
+    const secs = Object.keys(zip.files).filter(f => /^Contents\/section\d+\.xml$/i.test(f)).sort();
+    const out = [];
+    for (const f of secs) out.push(xmlToText(await zip.file(f).async('string'), 'hp:p'));
+    return out.join('\n\n').trim();
+  }
+  if (ext === 'hwp') throw new Error('HWP 파일은 바로 읽을 수 없습니다. 한글에서 HWPX나 PDF로 저장한 뒤 올려 주세요.');
+  if (['doc', 'ppt'].includes(ext)) throw new Error(`.${ext} 형식은 지원하지 않습니다. .${ext}x 형식으로 저장한 뒤 올려 주세요.`);
+  throw new Error(`.${ext} 형식은 지원하지 않습니다.`);
+}
+
+// ───────── AI 프롬프트 ─────────
+const KIND_LABEL = { need: '고객 니즈', meeting: '회의 내용', doc: '참고 문서', reply: '확인 회신' };
+
+function sourcesBlock(list) {
+  return list.map(s => `=== [${s.id}] ${KIND_LABEL[s.kind]} | 제목: ${s.mTitle || '(없음)'} | 작성·요청자: ${s.mAuthor || '(미상)'} | 일자: ${s.date || '(미상)'}\n${s.masked}`).join('\n\n');
+}
+
+const COMMON_RULES = `- 자료에 있는 내용만 쓰고 추측하지 마세요. 근거가 없으면 빈 문자열로 두세요.
+- 자료 속 [이름-1], [휴대폰-2] 같은 대괄호 토큰은 민감정보를 가린 표시입니다. 풀거나 바꾸지 말고 그대로 옮겨 쓰세요.
+- 모든 문장은 한국어 개조식(~함, ~필요)으로 간결하게 씁니다.`;
+
+function promptAnalyze(list) {
+  return `당신은 SW 개발·유지보수 요구사항 분석 전문가입니다. 아래 자료(고객 니즈, 이해관계자 회의 내용, 참고 문서)를 빠짐없이 읽고 요구사항 정의서의 기초 데이터를 만드세요.
+
+규칙
+${COMMON_RULES}
+- 고객이 요청한 내용은 하나도 빠뜨리지 말고 요구사항으로 만드세요. 회의에서 나온 제약·전제 조건, 법·제도 검토 사항, 일정 요구도 요구사항이나 미결사항으로 남기세요.
+- 요구사항 하나에는 요구 하나만 담으세요. id는 REQ-001부터 차례로 붙입니다.
+- category는 ${CATEGORIES.join(', ')} 중 하나입니다.
+- status는 ${STATUSES.join(', ')} 중 하나입니다. 회의 결정이 있으면 따르고, 결정이 없거나 의견이 갈리면 미결입니다. 조건부 수용이면 조건을, 불가면 이유를 statusReason에 쓰세요.
+- priority는 긴급도로 상, 중, 하 중 하나입니다.
+- quality는 품질속성(ISO/IEC 25010)으로 ${QUALITIES.join(', ')} 중 하나입니다. 기능 요구는 대개 기능적합성이고, 응답 속도는 성능효율성, 권한·마스킹·로그는 보안성, 화면·모바일은 사용성처럼 고릅니다.
+- difficulty는 구현 난이도로 상, 중, 하 중 하나입니다. 개발 담당 의견, 외부 연동·규격 변경 여부, 영향 범위로 판단하고 근거가 없으면 중입니다.
+- asis는 현재 상태, tobe는 개선 목표입니다. 참고 문서와 회의 발언에서 찾으세요.
+- sources에는 근거 자료 ID(S1 등), 발언자나 작성자(who), 근거 문장의 짧은 원문 인용(quote)을 씁니다. 요구사항마다 1개 이상, 관련 자료가 여럿이면 모두 씁니다.
+- acceptanceCriteria는 검수할 수 있는 문장으로 1~3개 씁니다.
+- rationale에는 판단 과정을 남깁니다. extract는 이 요구사항을 왜 뽑았는지(어느 자료의 어떤 요청·발언에서 나왔는지, 여러 발언을 묶거나 나눴다면 그 이유), classify는 유형과 우선순위를 그렇게 정한 이유, decide는 수용 여부를 그렇게 판단한 근거(회의 결정, 담당자 의견, 참고 문서)입니다. 각각 1~2문장으로 씁니다.
+- confidence는 판단 확신도로 높음, 보통, 낮음 중 하나입니다. 자료에 명시적 결정이 있으면 높음, 발언에서 추론했으면 보통, 근거가 약하면 낮음입니다.
+- meeting에는 회의에서 정해진 결정사항, 결정되지 않은 미결사항(담당자 포함), 후속 조치(담당자, 기한)를 나눠 씁니다.
+
+출력: 다음 형식의 JSON 객체 하나만 답하세요.
+{"project":{"title":"요청 건 이름(20자 이내)","summary":"요청 개요 2~3문장","background":"배경·목적 1~2문장"},
+"requirements":[{"id":"REQ-001","title":"","category":"기능","description":"","asis":"","tobe":"","priority":"상","quality":"기능적합성","difficulty":"중","status":"수용","statusReason":"","acceptanceCriteria":[""],"sources":[{"ref":"S1","who":"","quote":""}],"rationale":{"extract":"","classify":"","decide":""},"confidence":"높음"}],
+"meeting":{"decisions":[{"text":"","ref":"S2"}],"openIssues":[{"text":"","owner":"","ref":"S2"}],"actionItems":[{"task":"","owner":"","due":"","ref":"S2"}]}}
+
+자료
+${sourcesBlock(list)}`;
+}
+
+function promptCheck(list, base) {
+  const reqs = base.requirements.map(r => ({ id: r.id, title: r.title, category: r.category, description: r.description, status: r.status, statusReason: r.statusReason, acceptanceCriteria: r.acceptanceCriteria }));
+  return `당신은 요구사항 품질 검토자입니다. 원 자료와 정리된 요구사항 목록을 대조해 빈틈을 찾고, 누구에게 무엇을 물어야 하는지 정리하세요.
+
+점검 항목
+1. missing: 요구사항서에 있어야 하는데 빠진 내용. 예외 처리, 권한, 로그·이력, 성능 기준, 적용 일정, 데이터 보관, 지원 환경, 검수 기준을 차례로 확인하세요. 원 자료에 단서가 있는데 요구사항에 반영되지 않은 내용도 포함합니다. reqId는 관련 요구사항 ID(전체에 해당하면 빈 문자열), item은 점검 항목 이름, detail은 무엇이 빠졌는지, suggestion은 채울 내용 예시입니다.
+2. conflicts: 이해관계자끼리 의견이 다른 주제. 각 입장(who, stance, ref)을 모두 쓰고 절충안(suggestion)을 제안하세요.
+3. ambiguous: "빠르게", "적절히", "한눈에"처럼 검수할 수 없는 표현. 원문 표현(phrase)과 수치·조건으로 바꾼 예시(suggestion).
+4. questions: 미결·누락·충돌을 풀려면 누구에게 무엇을 물어야 하는지 대상자별로 묶으세요. to는 자료에 나온 이름과 직위 그대로(토큰 포함), role은 소속이나 역할입니다. 질문은 상대가 바로 답할 수 있게 구체적으로 쓰고, 가능하면 선택지나 제안안을 함께 주세요. why는 묻는 이유입니다.
+
+규칙
+${COMMON_RULES}
+
+출력: 다음 형식의 JSON 객체 하나만 답하세요.
+{"missing":[{"reqId":"REQ-001","item":"","detail":"","suggestion":"","ref":"S1"}],
+"conflicts":[{"topic":"","reqIds":["REQ-001"],"positions":[{"who":"","stance":"","ref":"S2"}],"suggestion":""}],
+"ambiguous":[{"phrase":"","reqId":"REQ-001","ref":"S1","suggestion":""}],
+"questions":[{"to":"","role":"","items":[{"q":"","reqIds":["REQ-001"],"why":""}]}]}
+
+요구사항 목록
+${JSON.stringify(reqs)}
+
+원 자료
+${sourcesBlock(list)}`;
+}
+
+function promptUpdate(result, fresh) {
+  const keep = { project: result.project, requirements: result.requirements.map(stripReq), meeting: result.meeting };
+  return `당신은 요구사항 정의서 관리자입니다. 기존 요구사항 데이터에 새로 받은 자료(확인 질문 회신 또는 추가 자료)를 반영하세요.
+
+규칙
+${COMMON_RULES}
+- 새 자료 때문에 바뀌는 요구사항만 고치세요. 나머지는 글자 하나 바꾸지 말고 그대로 두세요.
+- 새 요구가 있으면 기존 마지막 번호 다음 ID로 추가합니다. 기존 ID는 바꾸지 않습니다.
+- 철회된 요구사항은 지우지 말고 status를 "불가"로 바꾸고 이유를 쓰세요.
+- 바뀌거나 추가된 요구사항의 sources에 새 자료 ID와 근거 문장을 넣으세요.
+- 바뀌거나 추가된 요구사항은 rationale(extract, classify, decide)과 confidence(높음, 보통, 낮음)도 새 자료에 맞게 고치고, decide에 무엇 때문에 판단이 바뀌었는지 쓰세요.
+- meeting의 결정사항·미결사항·후속 조치도 새 자료에 맞게 고치세요. 해결된 미결사항은 빼고 결정사항에 넣습니다.
+- changes에는 바뀐 것만 씁니다. type은 추가, 변경, 해결 중 하나이고, summary는 무엇이 어떻게 바뀌었는지 한 문장으로 씁니다(예: "수용 여부 미결 → 조건부 수용: 6개월 경과 이력 분리 보관 조건").
+
+출력: 다음 형식의 JSON 객체 하나만 답하세요. requirements에는 바뀌지 않은 것까지 전체 목록을 넣습니다.
+{"project":{...},"requirements":[...],"meeting":{...},"changes":[{"type":"변경","reqId":"REQ-001","summary":""}]}
+
+기존 데이터
+${JSON.stringify(keep)}
+
+새 자료
+${sourcesBlock(fresh)}`;
+}
+
+function stripReq(r) {
+  const { confirmed, _changed, ...rest } = r;
+  return rest;
+}
+
+// ───────── AI 응답 정리 ─────────
+// 사내 LLM은 JSON 앞뒤에 설명이나 ```json 울타리를 붙이기도 합니다. 가장 바깥 { } 를 찾아 읽습니다.
+function parseJSONLoose(text) {
+  const t = String(text ?? '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+  try { return JSON.parse(t); } catch { /* 아래에서 다시 시도 */ }
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fence) { try { return JSON.parse(fence[1]); } catch { /* 계속 */ } }
+  const a = t.indexOf('{'), b = t.lastIndexOf('}');
+  if (a >= 0 && b > a) { try { return JSON.parse(t.slice(a, b + 1)); } catch { /* 실패 */ } }
+  throw { code: 'invalid_json' };
+}
+
+const str = v => (v == null ? '' : typeof v === 'string' ? v.trim() : String(v));
+const arr = v => (Array.isArray(v) ? v : v ? [v] : []);
+const pick = (v, list, dflt) => { const s = str(v); return list.includes(s) ? s : (list.find(x => s.includes(x)) || dflt); };
+
+function normalizeReq(r, i) {
+  return {
+    id: str(r.id) || `REQ-${String(i + 1).padStart(3, '0')}`,
+    title: str(r.title) || '(제목 없음)',
+    category: pick(r.category, CATEGORIES, '기능'),
+    priority: pick(r.priority, PRIORITIES, '중'),
+    quality: pick(r.quality, QUALITIES, QUALITY_BY_CATEGORY[pick(r.category, CATEGORIES, '기능')]),
+    difficulty: pick(r.difficulty, PRIORITIES, '중'),
+    status: STATUSES.includes(str(r.status)) ? str(r.status) : (/조건/.test(str(r.status)) ? '조건부 수용' : pick(r.status, STATUSES, '미결')),
+    description: str(r.description), asis: str(r.asis), tobe: str(r.tobe), statusReason: str(r.statusReason),
+    acceptanceCriteria: arr(r.acceptanceCriteria).map(str).filter(Boolean),
+    sources: arr(r.sources).map(s => ({ ref: str(s.ref), who: str(s.who), quote: str(s.quote) })),
+    rationale: { extract: str(r.rationale?.extract), classify: str(r.rationale?.classify), decide: str(r.rationale?.decide) },
+    confidence: pick(r.confidence, CONFIDENCE, ''),
+    confirmed: !!r.confirmed
+  };
+}
+
+function normalizeResult(raw) {
+  const r = raw || {};
+  const checks = r.checks || {};
+  const m = r.meeting || {};
+  return {
+    project: { title: str(r.project?.title) || '요구사항 정의', summary: str(r.project?.summary), background: str(r.project?.background) },
+    requirements: arr(r.requirements).map(normalizeReq),
+    meeting: {
+      decisions: arr(m.decisions).map(d => ({ text: str(d.text ?? d), ref: str(d.ref) })),
+      openIssues: arr(m.openIssues).map(d => ({ text: str(d.text ?? d), owner: str(d.owner), ref: str(d.ref) })),
+      actionItems: arr(m.actionItems).map(d => ({ task: str(d.task ?? d), owner: str(d.owner), due: str(d.due), ref: str(d.ref) }))
+    },
+    checks: {
+      missing: arr(checks.missing ?? r.missing).map(x => ({ reqId: str(x.reqId), item: str(x.item), detail: str(x.detail), suggestion: str(x.suggestion), ref: str(x.ref) })),
+      conflicts: arr(checks.conflicts ?? r.conflicts).map(x => ({ topic: str(x.topic), reqIds: arr(x.reqIds).map(str), positions: arr(x.positions).map(p => ({ who: str(p.who), stance: str(p.stance), ref: str(p.ref) })), suggestion: str(x.suggestion) })),
+      ambiguous: arr(checks.ambiguous ?? r.ambiguous).map(x => ({ phrase: str(x.phrase), reqId: str(x.reqId), ref: str(x.ref), suggestion: str(x.suggestion) }))
+    },
+    questions: arr(r.questions ?? checks.questions).map(g => ({ to: str(g.to), role: str(g.role), items: arr(g.items).map(q => ({ q: str(q.q ?? q), reqIds: arr(q.reqIds).map(str), why: str(q.why) })) })).filter(g => g.items.length)
+  };
+}
+
+function checkKey(kind, x) {
+  if (kind === 'missing') return `m|${x.reqId}|${x.item}|${x.detail.slice(0, 30)}`;
+  if (kind === 'conflicts') return `c|${x.topic}`;
+  return `a|${x.phrase}|${x.reqId}`;
+}
+
+// 두 결과의 요구사항을 비교해 바뀐 항목 표시를 붙입니다.
+const REQ_FIELDS = { title: '요구사항명', category: '유형', priority: '우선순위', quality: '품질속성', difficulty: '난이도', status: '수용 여부', statusReason: '사유', description: '상세 내용', asis: 'AS-IS', tobe: 'TO-BE', acceptanceCriteria: '검수 기준', sources: '출처' };
+function diffReq(a, b) {
+  return Object.keys(REQ_FIELDS).filter(k => JSON.stringify(a[k]) !== JSON.stringify(b[k]));
+}
+
+// ───────── 문서 모델 (미리보기·Word·Markdown 공용) ─────────
+const COLUMN_DEFS = {
+  id: { label: 'ID', get: r => r.id },
+  title: { label: '요구사항명', get: r => r.title },
+  category: { label: '유형', get: r => r.category },
+  description: { label: '상세 내용', get: r => r.description },
+  asis: { label: 'AS-IS (현행)', get: r => r.asis },
+  tobe: { label: 'TO-BE (개선)', get: r => r.tobe },
+  priority: { label: '우선순위', get: r => r.priority },
+  quality: { label: '품질속성', get: r => r.quality },
+  difficulty: { label: '난이도', get: r => r.difficulty },
+  status: { label: '수용 여부', get: r => r.status },
+  statusReason: { label: '사유·조건', get: r => r.statusReason },
+  sources: { label: '출처', get: (r, ctx) => r.sources.map(s => `${s.ref}${ctx.srcTitle(s.ref) ? ' ' + ctx.srcTitle(s.ref) : ''}${s.who ? ' / ' + s.who : ''}`).join('\n') },
+  acceptance: { label: '검수 기준', get: r => r.acceptanceCriteria.map(a => '- ' + a).join('\n') },
+  confirmed: { label: '확정', get: r => (r.confirmed ? '확정' : '검토 중') }
+};
+const SECTION_DEFS = {
+  overview: '요청 개요',
+  reqTable: '요구사항 목록',
+  reqDetail: '요구사항 상세',
+  decisions: '회의 결정사항',
+  open: '미결사항 및 후속 조치',
+  checks: '누락·충돌 점검 결과',
+  sourcesList: '참고 자료 목록',
+  history: '변경 이력'
+};
+
+const TEMPLATE_PRESETS = {
+  std: {
+    name: '개발요청서 (표준)', docTitle: '개발 요청서',
+    sections: ['overview', 'reqTable', 'reqDetail', 'decisions', 'open', 'checks', 'sourcesList', 'history'].map(k => ({ key: k, label: SECTION_DEFS[k], on: true })),
+    columns: ['id', 'title', 'category', 'description', 'priority', 'status', 'statusReason', 'sources', 'acceptance'].map(k => ({ key: k, label: COLUMN_DEFS[k].label, on: true }))
+  },
+  rfp: {
+    name: 'RFP 요구사항 정의표', docTitle: '요구사항 정의서',
+    sections: [{ key: 'overview', label: '사업 개요', on: true }, { key: 'reqTable', label: '세부 요구사항', on: true }, { key: 'reqDetail', label: '요구사항 상세', on: false }, { key: 'decisions', label: '회의 결정사항', on: false }, { key: 'open', label: '미결사항 및 후속 조치', on: false }, { key: 'checks', label: '누락·충돌 점검 결과', on: false }, { key: 'sourcesList', label: '참고 자료 목록', on: true }, { key: 'history', label: '변경 이력', on: true }],
+    columns: [{ key: 'id', label: '요구사항 고유번호', on: true }, { key: 'category', label: '요구사항 분류', on: true }, { key: 'title', label: '요구사항 명칭', on: true }, { key: 'description', label: '정의', on: true }, { key: 'tobe', label: '세부 내용', on: true }, { key: 'acceptance', label: '산출정보·검수 기준', on: true }, { key: 'priority', label: '중요도', on: true }, { key: 'sources', label: '요구사항 출처', on: true }, { key: 'status', label: '수용 여부', on: false }, { key: 'statusReason', label: '사유·조건', on: false }]
+  },
+  brief: {
+    name: '간이 요구사항 목록', docTitle: '요구사항 목록',
+    sections: [{ key: 'overview', label: '요청 개요', on: false }, { key: 'reqTable', label: '요구사항 목록', on: true }, { key: 'reqDetail', label: '요구사항 상세', on: false }, { key: 'decisions', label: '회의 결정사항', on: false }, { key: 'open', label: '미결사항 및 후속 조치', on: true }, { key: 'checks', label: '누락·충돌 점검 결과', on: false }, { key: 'sourcesList', label: '참고 자료 목록', on: false }, { key: 'history', label: '변경 이력', on: false }],
+    columns: ['id', 'title', 'status', 'priority', 'statusReason'].map(k => ({ key: k, label: COLUMN_DEFS[k].label, on: true }))
+  }
+};
+
+// ctx: {result, meta, template, sources, history, resolved, tx(text)}
+function buildDocBlocks(ctx) {
+  const { result, meta, template, tx } = ctx;
+  const B = [];
+  const T = s => tx(s ?? '');
+  B.push({ t: 'title', text: T(meta.docName || template.docTitle) });
+  B.push({ t: 'kv', rows: [['요청 건명', T(meta.title || result.project.title)], ['요청 부서', T(meta.dept)], ['작성자', T(meta.author)], ['작성일', T(meta.date)], ['대상 시스템', T(meta.system)], ['문서 버전', T(meta.version)]].filter(r => r[1]) });
+  let n = 0;
+  for (const sec of template.sections) {
+    if (!sec.on) continue;
+    n++;
+    const H = `${n}. ${sec.label}`;
+    const reqs = result.requirements;
+    if (sec.key === 'overview') {
+      B.push({ t: 'h1', text: H });
+      if (result.project.summary) B.push({ t: 'p', text: T(result.project.summary) });
+      if (result.project.background) B.push({ t: 'kv', rows: [['배경·목적', T(result.project.background)]] });
+      const cnt = s => reqs.filter(r => r.status === s).length;
+      B.push({ t: 'kv', rows: [['요구사항 수', `전체 ${reqs.length}건 (수용 ${cnt('수용')}, 조건부 수용 ${cnt('조건부 수용')}, 불가 ${cnt('불가')}, 미결 ${cnt('미결')})`], ['확정 현황', `${reqs.filter(r => r.confirmed).length} / ${reqs.length}건 확정`]] });
+    } else if (sec.key === 'reqTable') {
+      B.push({ t: 'h1', text: H });
+      const cols = template.columns.filter(c => c.on);
+      B.push({ t: 'table', head: cols.map(c => c.label), rows: reqs.map(r => cols.map(c => T(COLUMN_DEFS[c.key] ? COLUMN_DEFS[c.key].get(r, ctx) : ''))), wide: true });
+    } else if (sec.key === 'reqDetail') {
+      B.push({ t: 'h1', text: H });
+      for (const r of reqs) {
+        B.push({ t: 'h2', text: `${r.id} ${T(r.title)}` });
+        B.push({ t: 'kv', rows: [['유형 / 우선순위', `${r.category} / ${r.priority}`], ['수용 여부', `${r.status}${r.statusReason ? ' — ' + T(r.statusReason) : ''}`], ['상세 내용', T(r.description)], ['AS-IS (현행)', T(r.asis)], ['TO-BE (개선)', T(r.tobe)], ['검수 기준', r.acceptanceCriteria.map(a => '- ' + T(a)).join('\n')], ['출처', r.sources.map(s => `[${s.ref}] ${T(s.who)}: "${T(s.quote)}"`).join('\n')]].filter(x => x[1]) });
+      }
+    } else if (sec.key === 'decisions') {
+      B.push({ t: 'h1', text: H });
+      B.push(result.meeting.decisions.length ? { t: 'bullets', items: result.meeting.decisions.map(d => `${T(d.text)}${d.ref ? ` (${d.ref})` : ''}`) } : { t: 'p', text: '없음' });
+    } else if (sec.key === 'open') {
+      B.push({ t: 'h1', text: H });
+      B.push({ t: 'h2', text: '미결사항' });
+      B.push(result.meeting.openIssues.length ? { t: 'table', head: ['미결사항', '담당', '출처'], rows: result.meeting.openIssues.map(o => [T(o.text), T(o.owner), o.ref]) } : { t: 'p', text: '없음' });
+      B.push({ t: 'h2', text: '후속 조치' });
+      B.push(result.meeting.actionItems.length ? { t: 'table', head: ['조치 내용', '담당', '기한'], rows: result.meeting.actionItems.map(a => [T(a.task), T(a.owner), T(a.due)]) } : { t: 'p', text: '없음' });
+    } else if (sec.key === 'checks') {
+      B.push({ t: 'h1', text: H });
+      const c = result.checks, st = (k, x) => (ctx.resolved.has(checkKey(k, x)) ? '해결' : '확인 필요');
+      B.push({ t: 'h2', text: `누락 항목 (${c.missing.length})` });
+      B.push(c.missing.length ? { t: 'table', head: ['관련', '항목', '빠진 내용', '보완 제안', '상태'], rows: c.missing.map(x => [x.reqId || '전체', T(x.item), T(x.detail), T(x.suggestion), st('missing', x)]) } : { t: 'p', text: '없음' });
+      B.push({ t: 'h2', text: `상충 의견 (${c.conflicts.length})` });
+      B.push(c.conflicts.length ? { t: 'table', head: ['주제', '의견', '절충 제안', '상태'], rows: c.conflicts.map(x => [`${T(x.topic)}\n(${x.reqIds.join(', ')})`, x.positions.map(p => `${T(p.who)}: ${T(p.stance)}`).join('\n'), T(x.suggestion), st('conflicts', x)]) } : { t: 'p', text: '없음' });
+      B.push({ t: 'h2', text: `모호한 표현 (${c.ambiguous.length})` });
+      B.push(c.ambiguous.length ? { t: 'table', head: ['원문 표현', '관련', '구체화 제안', '상태'], rows: c.ambiguous.map(x => [`"${T(x.phrase)}"`, x.reqId, T(x.suggestion), st('ambiguous', x)]) } : { t: 'p', text: '없음' });
+    } else if (sec.key === 'sourcesList') {
+      B.push({ t: 'h1', text: H });
+      B.push({ t: 'table', head: ['ID', '구분', '제목', '작성·요청자', '일자'], rows: ctx.sources.map(s => [s.id, KIND_LABEL[s.kind], T(s.mTitle ?? s.title), T(s.mAuthor ?? s.author), s.date]) });
+    } else if (sec.key === 'history') {
+      B.push({ t: 'h1', text: H });
+      B.push(ctx.history.length ? { t: 'table', head: ['일시', '구분', '내용'], rows: ctx.history.map(h => [h.at, h.label, h.changes.map(c => `[${c.type}] ${c.reqId ? c.reqId + ' ' : ''}${T(c.summary)}`).join('\n')]) } : { t: 'p', text: '없음' });
+    }
+  }
+  return B;
+}
+
+function blocksToHTML(B) {
+  const cell = s => esc(s).replace(/\n/g, '<br>');
+  return B.map(b => {
+    if (b.t === 'title') return `<h1 class="doc-title">${esc(b.text)}</h1>`;
+    if (b.t === 'h1') return `<h2 class="doc-h1">${esc(b.text)}</h2>`;
+    if (b.t === 'h2') return `<h3 class="doc-h2">${esc(b.text)}</h3>`;
+    if (b.t === 'p') return `<p class="doc-p">${cell(b.text)}</p>`;
+    if (b.t === 'bullets') return `<ul class="doc-ul">${b.items.map(i => `<li>${cell(i)}</li>`).join('')}</ul>`;
+    if (b.t === 'kv') return `<table class="doc-kv"><tbody>${b.rows.map(r => `<tr><th>${esc(r[0])}</th><td>${cell(r[1])}</td></tr>`).join('')}</tbody></table>`;
+    if (b.t === 'table') return `<div class="doc-scroll"><table class="doc-tbl"><thead><tr>${b.head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${b.rows.map(r => `<tr>${r.map(c => `<td>${cell(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    return '';
+  }).join('\n');
+}
+
+function blocksToMarkdown(B) {
+  const mdCell = s => String(s ?? '').replace(/\|/g, '\\|').replace(/\n/g, '<br>');
+  return B.map(b => {
+    if (b.t === 'title') return `# ${b.text}`;
+    if (b.t === 'h1') return `## ${b.text}`;
+    if (b.t === 'h2') return `### ${b.text}`;
+    if (b.t === 'p') return b.text;
+    if (b.t === 'bullets') return b.items.map(i => `- ${i.replace(/\n/g, ' ')}`).join('\n');
+    if (b.t === 'kv') return `| 항목 | 내용 |\n|---|---|\n` + b.rows.map(r => `| ${mdCell(r[0])} | ${mdCell(r[1])} |`).join('\n');
+    if (b.t === 'table') return `| ${b.head.map(mdCell).join(' | ')} |\n|${b.head.map(() => '---').join('|')}|\n` + b.rows.map(r => `| ${r.map(mdCell).join(' | ')} |`).join('\n');
+    return '';
+  }).join('\n\n') + '\n';
+}
+
+// 최소 구성 Word(.docx) 파일을 직접 만듭니다.
+async function blocksToDocx(B) {
+  await loadScript(CDN.jszip);
+  const x = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+  const runs = (text, rpr = '') => String(text ?? '').split('\n').map((line, i) => `<w:r>${rpr ? `<w:rPr>${rpr}</w:rPr>` : ''}${i ? '<w:br/>' : ''}<w:t xml:space="preserve">${x(line)}</w:t></w:r>`).join('');
+  const para = (text, style, rpr) => `<w:p>${style ? `<w:pPr><w:pStyle w:val="${style}"/></w:pPr>` : ''}${runs(text, rpr)}</w:p>`;
+  const PAGE_W = 14570;
+  const tbl = (head, rows, widths) => {
+    const cols = head ? head.length : rows[0]?.length || 1;
+    const w = widths || Array(cols).fill(Math.floor(PAGE_W / cols));
+    const tc = (t, i, isHead) => `<w:tc><w:tcPr><w:tcW w:w="${w[i]}" w:type="dxa"/>${isHead ? '<w:shd w:val="clear" w:color="auto" w:fill="DDEBE7"/>' : ''}</w:tcPr><w:p><w:pPr><w:spacing w:before="20" w:after="20"/></w:pPr>${runs(t, isHead ? '<w:b/><w:sz w:val="18"/>' : '<w:sz w:val="18"/>')}</w:p></w:tc>`;
+    const tr = (r, isHead) => `<w:tr>${isHead ? '<w:trPr><w:tblHeader/></w:trPr>' : ''}${r.map((t, i) => tc(t, i, isHead)).join('')}</w:tr>`;
+    const bd = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(s => `<w:${s} w:val="single" w:sz="4" w:space="0" w:color="9AA8A4"/>`).join('');
+    return `<w:tbl><w:tblPr><w:tblW w:w="${PAGE_W}" w:type="dxa"/><w:tblBorders>${bd}</w:tblBorders><w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="80" w:type="dxa"/><w:right w:w="80" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblGrid>${w.map(v => `<w:gridCol w:w="${v}"/>`).join('')}</w:tblGrid>${head ? tr(head, true) : ''}${rows.map(r => tr(r, false)).join('')}</w:tbl><w:p/>`;
+  };
+  const colWidths = head => {
+    const weight = h => (/ID|번호|우선|중요|유형|분류|수용 여부|확정|상태|구분|일자|일시|관련|기한/.test(h) ? 1 : /내용|정의|검수|사유|출처|의견|제안|빠진|조치|미결/.test(h) ? 3 : 2);
+    const ws = head.map(weight), sum = ws.reduce((a, b) => a + b, 0);
+    return ws.map(v => Math.floor(PAGE_W * v / sum));
+  };
+  const body = B.map(b => {
+    if (b.t === 'title') return para(b.text, 'Title');
+    if (b.t === 'h1') return para(b.text, 'Heading1');
+    if (b.t === 'h2') return para(b.text, 'Heading2');
+    if (b.t === 'p') return para(b.text);
+    if (b.t === 'bullets') return b.items.map(i => para('• ' + i)).join('');
+    if (b.t === 'kv') return tbl(null, b.rows.map(r => [r[0], r[1]]), [2800, PAGE_W - 2800]).replace(/<w:tc><w:tcPr><w:tcW w:w="2800" w:type="dxa"\/>/g, '<w:tc><w:tcPr><w:tcW w:w="2800" w:type="dxa"/><w:shd w:val="clear" w:color="auto" w:fill="EEF3F1"/>');
+    if (b.t === 'table') return tbl(b.head, b.rows, colWidths(b.head));
+    return '';
+  }).join('');
+  const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+  const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${W}><w:body>${body}<w:sectPr><w:pgSz w:w="16838" w:h="11906" w:orient="landscape"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+  const font = '<w:rFonts w:ascii="Malgun Gothic" w:hAnsi="Malgun Gothic" w:eastAsia="맑은 고딕" w:cs="Malgun Gothic"/>';
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles ${W}><w:docDefaults><w:rPrDefault><w:rPr>${font}<w:sz w:val="20"/><w:lang w:val="ko-KR" w:eastAsia="ko-KR"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="80" w:line="300" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>
+<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>
+<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:pPr><w:jc w:val="center"/><w:spacing w:after="240"/></w:pPr><w:rPr><w:b/><w:sz w:val="40"/></w:rPr></w:style>
+<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:pPr><w:keepNext/><w:spacing w:before="320" w:after="120"/><w:outlineLvl w:val="0"/></w:pPr><w:rPr><w:b/><w:color w:val="1F5F5B"/><w:sz w:val="28"/></w:rPr></w:style>
+<w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:pPr><w:keepNext/><w:spacing w:before="200" w:after="80"/><w:outlineLvl w:val="1"/></w:pPr><w:rPr><w:b/><w:sz w:val="22"/></w:rPr></w:style>
+</w:styles>`;
+  const zip = new window.JSZip();
+  zip.file('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>');
+  zip.file('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+  zip.file('word/_rels/document.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>');
+  zip.file('word/document.xml', doc);
+  zip.file('word/styles.xml', styles);
+  return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+}
+
+async function buildXlsx(ctx) {
+  await loadScript(CDN.xlsx);
+  const X = window.XLSX, T = ctx.tx, wb = X.utils.book_new();
+  const add = (name, aoa, widths) => { const ws = X.utils.aoa_to_sheet(aoa); ws['!cols'] = widths.map(w => ({ wch: w })); X.utils.book_append_sheet(wb, ws, name); };
+  const cols = ctx.template.columns.filter(c => c.on);
+  add('요구사항', [cols.map(c => c.label), ...ctx.result.requirements.map(r => cols.map(c => T(COLUMN_DEFS[c.key] ? COLUMN_DEFS[c.key].get(r, ctx) : '')))], cols.map(c => (/내용|기준|사유|출처|정의/.test(c.label) ? 50 : /명/.test(c.label) ? 28 : 12)));
+  const r = ctx.result.requirements;
+  add('추적표', [['ID', '요구사항명', '수용 여부', '출처 ID', '발언·작성자', '근거 문장', '검수 기준'], ...r.flatMap(q => (q.sources.length ? q.sources : [{}]).map((s, i) => [q.id, i ? '' : T(q.title), i ? '' : q.status, s.ref || '', T(s.who || ''), T(s.quote || ''), i ? '' : q.acceptanceCriteria.map(T).join('\n')]))], [10, 28, 12, 8, 18, 50, 50]);
+  const c = ctx.result.checks;
+  add('점검결과', [['구분', '관련', '항목·주제', '내용', '제안', '상태'],
+    ...c.missing.map(x => ['누락', x.reqId || '전체', T(x.item), T(x.detail), T(x.suggestion), ctx.resolved.has(checkKey('missing', x)) ? '해결' : '확인 필요']),
+    ...c.conflicts.map(x => ['상충', x.reqIds.join(', '), T(x.topic), x.positions.map(p => `${T(p.who)}: ${T(p.stance)}`).join('\n'), T(x.suggestion), ctx.resolved.has(checkKey('conflicts', x)) ? '해결' : '확인 필요']),
+    ...c.ambiguous.map(x => ['모호', x.reqId, `"${T(x.phrase)}"`, '', T(x.suggestion), ctx.resolved.has(checkKey('ambiguous', x)) ? '해결' : '확인 필요'])], [8, 14, 20, 50, 50, 10]);
+  add('확인질문', [['받는 사람', '역할', '질문', '관련', '이유'], ...ctx.result.questions.flatMap(g => g.items.map(q => [T(g.to), T(g.role), T(q.q), q.reqIds.join(', '), T(q.why)]))], [18, 16, 70, 14, 30]);
+  add('변경이력', [['일시', '구분', '유형', '관련', '내용'], ...ctx.history.flatMap(h => h.changes.map(ch => [h.at, h.label, ch.type, ch.reqId, T(ch.summary)]))], [16, 14, 8, 10, 70]);
+  const out = X.write(wb, { bookType: 'xlsx', type: 'array' });
+  return new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+// ───────── AI 판단 과정 기록 (설명 가능성) ─────────
+// 나중에 "왜 이렇게 정리됐는지"를 추적할 수 있도록 입력·보호 조치·AI 호출·요구사항별 판단 근거·사람의 검토를 한 문서로 남깁니다.
+// ctx: docCtx() + {calls, maskStats, engine, prompts}
+function buildTraceMarkdown(ctx) {
+  const { result, tx } = ctx;
+  const T = s => tx(s ?? '');
+  const cell = s => String(s ?? '').replace(/\|/g, '\|').replace(/\n/g, '<br>');
+  const table = (head, rows) => rows.length ? `| ${head.join(' | ')} |\n|${head.map(() => '---').join('|')}|\n` + rows.map(r => `| ${r.map(cell).join(' | ')} |`).join('\n') : '_없음_';
+  const reqs = result.requirements;
+  const histOf = id => ctx.history.flatMap(h => h.changes.filter(c => c.reqId === id).map(c => ({ at: h.at, label: h.label, ref: h.ref, ...c })));
+  const done = (k, x) => (ctx.resolved.has(checkKey(k, x)) ? '해결' : '확인 필요');
+  const L = [];
+  L.push(`# AI 판단 과정 기록: ${T(result.project.title)}`);
+  L.push(table(['항목', '내용'], [
+    ['만든 일시', nowStamp()],
+    ['도구', `모두의 요구사항 한 번에! v${APP_VERSION}`],
+    ['분석 방식', result.isDemo ? '예시 모드: 미리 분석해 둔 결과를 불러옴 (AI를 호출하지 않음)' : ctx.engine],
+    ['요구사항', `${reqs.length}건 (확정 ${reqs.filter(r => r.confirmed).length}건)`],
+    ['민감정보 표시', ctx.restored ? '이 문서는 가린 값을 원래 값으로 채워 만들었습니다. 외부 공유 전에 확인하세요.' : 'AI에 보낸 상태 그대로([이름-1] 같은 토큰)로 기록했습니다.']
+  ]));
+  L.push('> 이 문서는 AI가 낸 결과를 사람이 검증할 수 있도록 판단 근거와 처리 과정을 남긴 기록입니다. AI 결과는 초안이며, 확정 표시는 담당자가 직접 확인한 항목입니다.');
+
+  L.push('## 1. 처리 순서');
+  L.push(['1. **자료 입력**: 고객 니즈, 회의 내용, 참고 문서를 받음',
+    '2. **민감정보 가리기**: 이름·연락처·계좌 등을 이 브라우저 안에서 토큰으로 바꿈. 원래 값은 AI에 보내지 않음',
+    '3. **요구사항 추출·분류**: AI가 요구사항, 출처, 유형·우선순위·수용 여부와 그 판단 근거를 정리함',
+    '4. **누락·충돌 점검**: AI가 정리된 요구사항을 원 자료와 다시 대조해 빠진 것, 의견이 다른 것, 모호한 표현을 찾음',
+    '5. **사람 검토**: 담당자가 수정·확정·해결 표시를 하고, 회신을 받아 다시 반영함',
+    '6. **문서 생성**: 확정한 내용으로 양식에 맞춰 문서를 만듦'].join('\n'));
+
+  L.push('## 2. 입력 자료');
+  L.push(table(['ID', '구분', '제목', '작성·요청자', '일자', '글자 수', '파일'], ctx.sources.map(s => [s.id, KIND_LABEL[s.kind], T(s.mTitle ?? s.title), T(s.mAuthor ?? s.author), s.date, fmtNum(s.text.length), s.fileName || '직접 입력'])));
+
+  L.push('## 3. 민감정보 보호 조치');
+  L.push('AI에 보내기 전에 아래 항목을 토큰으로 바꿨습니다. 원래 값은 이 기록에 남기지 않습니다.');
+  L.push(table(['유형', '가림', '가리지 않음(원문 전송)'], ctx.maskStats.map(m => [m.type, `${m.on}종`, m.off ? `${m.off}종` : '-'])));
+  if (ctx.maskStats.some(m => m.off)) L.push('> 주의: 담당자가 "가리지 않음"으로 바꾼 항목은 원문 그대로 AI에 전송됐습니다.');
+
+  L.push('## 4. AI 호출 기록');
+  L.push(table(['#', '시각', '단계', '실행', '보낸 크기', '받은 글자', '걸린 시간', '결과'], ctx.calls.map((c, i) => [i + 1, c.at, c.step, c.engine, c.inBytes ? `${fmtNum(c.inBytes)} B` : '-', c.outChars ? fmtNum(c.outChars) : '-', c.ms != null ? `${(c.ms / 1000).toFixed(1)}초` : '-', c.ok ? '성공' : `실패: ${c.error || ''}`])));
+  L.push('AI에 준 지시문 전문은 이 문서 끝 [부록]에 있습니다. 자료 본문은 3장의 보호 조치를 거친 상태로만 전송됐습니다.');
+
+  L.push('## 5. 요구사항별 판단 근거');
+  const cnt = s => reqs.filter(r => r.status === s).length;
+  L.push(`전체 ${reqs.length}건: ${STATUSES.map(s => `${s} ${cnt(s)}`).join(', ')}`);
+  for (const r of reqs) {
+    L.push(`### ${r.id} ${T(r.title)}`);
+    L.push(table(['판단', '결과', '근거'], [
+      ['추출', T(r.description), T(r.rationale?.extract) || '(기록 없음)'],
+      ['유형·우선순위', `${r.category} / ${r.priority}`, T(r.rationale?.classify) || '(기록 없음)'],
+      ['수용 여부', `${r.status}${r.statusReason ? `: ${T(r.statusReason)}` : ''}`, T(r.rationale?.decide) || '(기록 없음)'],
+      ['확신도', r.confidence || '(기록 없음)', r.confidence === '낮음' ? '근거가 약함. 담당자 확인 필요' : ''],
+      ['사람 검토', r.confirmed ? '확정' : '검토 중', '']
+    ]));
+    if (r.sources.length) L.push('근거 문장\n\n' + r.sources.map(s => `> **[${s.ref}${ctx.srcTitle(s.ref) ? ' ' + ctx.srcTitle(s.ref) : ''}]** ${T(s.who)}: "${T(s.quote)}"`).join('\n>\n'));
+    else L.push('> 근거 문장 없음: 출처를 확인해야 합니다.');
+    const h = histOf(r.id);
+    if (h.length) L.push('변경 이력\n\n' + h.map(c => `- ${c.at} ${c.label}${c.ref ? ` (${c.ref})` : ''}: [${c.type}] ${T(c.summary)}`).join('\n'));
+  }
+
+  const c = result.checks;
+  L.push('## 6. 누락·충돌 점검 판단');
+  L.push('AI가 요구사항 목록을 원 자료와 다시 대조해 찾은 항목입니다. 상태는 담당자가 표시한 처리 결과입니다.');
+  L.push('### 빠진 항목');
+  L.push(table(['관련', '점검 항목', '왜 빠졌다고 봤는지', '보완 제안', '근거 자료', '상태'], c.missing.map(x => [x.reqId || '전체', T(x.item), T(x.detail), T(x.suggestion), x.ref, done('missing', x)])));
+  L.push('### 서로 다른 의견');
+  L.push(table(['주제', '관련', '각 입장', '절충 제안', '상태'], c.conflicts.map(x => [T(x.topic), x.reqIds.join(', '), x.positions.map(p => `${T(p.who)}(${p.ref}): ${T(p.stance)}`).join('\n'), T(x.suggestion), done('conflicts', x)])));
+  L.push('### 모호한 표현');
+  L.push(table(['원문 표현', '관련', '근거 자료', '구체화 제안', '상태'], c.ambiguous.map(x => [`"${T(x.phrase)}"`, x.reqId, x.ref, T(x.suggestion), done('ambiguous', x)])));
+  L.push('### 확인 질문');
+  L.push(table(['받는 사람', '질문', '관련', '묻는 이유'], result.questions.flatMap(g => g.items.map(q => [`${T(g.to)} (${T(g.role)})`, T(q.q), q.reqIds.join(', '), T(q.why)]))));
+
+  L.push('## 7. 전체 변경 이력');
+  L.push(table(['일시', '구분', '근거 자료', '유형', '관련', '내용'], ctx.history.flatMap(h => h.changes.map(ch => [h.at, h.label, h.ref || '-', ch.type, ch.reqId || '-', T(ch.summary)]))));
+
+  L.push('## 8. 유의사항');
+  L.push(['- AI 결과는 초안입니다. 수용 여부와 일정은 담당 부서가 최종 결정합니다.',
+    '- 확신도 "낮음"이거나 근거 문장이 없는 요구사항은 원 자료로 다시 확인하세요.',
+    '- 같은 자료라도 AI 모델이나 실행 시점에 따라 결과가 조금 달라질 수 있습니다. 이 기록은 이번 실행의 판단 과정입니다.'].join('\n'));
+
+  if (ctx.prompts.length) {
+    L.push('## 부록. AI에 준 지시문');
+    for (const p of ctx.prompts) L.push(`<details><summary>${p.name}</summary>\n\n\`\`\`text\n${p.text.replace(/```/g, "'''")}\n\`\`\`\n\n</details>`);
+  }
+  return L.join('\n\n') + '\n';
+}
+
+// ───────── 사내 표준 양식 ─────────
+// 문서 만들기의 양식 목록에 개발요청서·RFP·간이 목록과 나란히 들어갑니다. 모양이 표준으로 고정돼 목차·열 편집은 없습니다.
+const FORM_PRESETS = {
+  pumui: {
+    name: '품의문 (한글)', fmt: 'hwpx', button: '한글로 내려받기 (.hwpx)', meta: ['title', 'dept', 'author', 'system'],
+    note: '사내 한글 문서 작성 표준을 따릅니다. 한글 2014 이후 버전에서 열립니다.',
+    help: '품의문은 한글(.hwpx) 파일 하나로 내려받습니다. 붙임으로 요구사항명세서를 함께 첨부하세요.',
+    spec: [['용지', 'A4, 위 20 · 아래 10 · 좌우 20mm'], ['글꼴', '휴먼명조(제목류는 굵게)'], ['크기', '제목 22, 대 16, 중 15, 내용 14, 표 12pt'], ['항목', '1. → 가. → □ → ○ → -'], ['표', '0.1mm 실선, 양 끝 세로선 없음, 첫 행 음영'], ['쪽 번호', '가운데 아래 "- 1 -"'], ['구성', '추진 배경 · 요청 개요 · 주요 요구사항 · 협의 결과 및 향후 조치 · 붙임']]
+  },
+  spec: {
+    name: '요구사항명세서 (Excel)', fmt: 'spec', button: 'Excel로 내려받기 (.xlsx)', meta: ['title', 'author', 'date'],
+    note: '사내 요구사항명세 양식과 같은 배치입니다.',
+    help: "요구사항명세서는 시트 '요구사항명세(상세)' 하나로 내려받습니다. 머리글에 필터가 걸리고, 유형·품질속성·긴급도·난이도는 목록에서 고릅니다.",
+    spec: [['1행', '관련개발요청 · 작성자 · 작성일'], ['3행', '요구사항 ID · 유형 · 품질속성 · 요구사항명 · 상세설명 · 긴급도 · 난이도 · 출처'], ['상세설명', '내용 + 수용 여부 조건 + 검수 기준'], ['품질속성', 'ISO/IEC 25010 품질 특성'], ['긴급도·난이도', '상 · 중 · 하 (요구사항 수정에서 변경)']]
+  }
+};
+
+// ───────── 품의문 (한글 문서 작성 표준) ─────────
+// 내용 모델 하나로 화면 미리보기와 HWPX 파일을 함께 만듭니다.
+// 블록: title, h1(1.), h2(가.), box(□), circle(○), dash(-), table, note(*), attach(붙임)
+const HANGUL_SEQ = '가나다라마바사아자차카타파하';
+const dotDate = iso => { const m = String(iso || '').match(/(\d{4})-(\d{1,2})-(\d{1,2})/); return m ? `${m[1]}. ${+m[2]}. ${+m[3]}.` : String(iso || ''); };
+const xmlEsc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+
+function buildPumuiBlocks(ctx) {
+  const { result, meta, tx } = ctx;
+  const T = s => tx(s ?? '');
+  const reqs = result.requirements, m = result.meeting;
+  const title = T(meta.title || result.project.title);
+  const B = [{ t: 'title', text: `${title} 개발 요청` }];
+  let n = 0, sub = 0;
+  const h1 = text => { B.push({ t: 'h1', text: `${++n}. ${text}` }); sub = 0; };
+  const h2 = text => B.push({ t: 'h2', text: `${HANGUL_SEQ[sub++]}. ${text}` });
+  const cnt = s => reqs.filter(r => r.status === s).length;
+  const kinds = new Set(ctx.sources.map(s => s.kind));
+  const basis = [kinds.has('need') && '고객 요청', kinds.has('meeting') && '이해관계자 협의', kinds.has('reply') && '확인 회신', kinds.has('doc') && '현행 자료 검토'].filter(Boolean).join('·') || '검토';
+
+  h1('추진 배경');
+  if (result.project.background) B.push({ t: 'box', text: T(result.project.background) });
+  B.push({ t: 'box', text: `${basis} 결과를 반영하여 아래와 같이 개발을 요청하고자 함` });
+
+  h1('요청 개요');
+  B.push({ t: 'box', text: `요청 건명: ${title}` });
+  if (meta.dept) B.push({ t: 'box', text: `요청 부서: ${T(meta.dept)}` });
+  if (meta.system) B.push({ t: 'box', text: `대상 시스템: ${T(meta.system)}` });
+  if (result.project.summary) B.push({ t: 'box', text: `요청 내용: ${T(result.project.summary)}` });
+  B.push({ t: 'box', text: `요구사항: 전체 ${reqs.length}건(수용 ${cnt('수용')}, 조건부 수용 ${cnt('조건부 수용')}, 불가 ${cnt('불가')}, 미결 ${cnt('미결')})` });
+
+  h1('주요 요구사항');
+  B.push({ t: 'table', title: '요구사항 목록', head: ['번호', '요구사항명', '유형', '긴급도', '수용 여부'], align: ['c', 'l', 'c', 'c', 'c'], weights: [1.8, 4.4, 1.6, 1.3, 1.7],
+    rows: reqs.map(r => [r.id, T(r.title), r.category, r.priority, r.status]) });
+  B.push({ t: 'note', text: '* 세부 내용은 붙임 「요구사항명세서」 참조' });
+  for (const [st, label] of [['조건부 수용', '조건부 수용 사항'], ['불가', '불가 사항']]) {
+    const list = reqs.filter(r => r.status === st);
+    if (!list.length) continue;
+    h2(label);
+    for (const r of list) {
+      B.push({ t: 'box', text: `${T(r.title)}(${r.id})` });
+      if (r.statusReason) B.push({ t: 'circle', text: T(r.statusReason) });
+    }
+  }
+
+  h1('협의 결과 및 향후 조치');
+  if (m.decisions.length) { h2('결정사항'); m.decisions.forEach(d => B.push({ t: 'box', text: T(d.text) })); }
+  if (m.openIssues.length) {
+    h2('미결사항');
+    m.openIssues.forEach(o => { B.push({ t: 'box', text: T(o.text) }); if (o.owner) B.push({ t: 'dash', text: `담당: ${T(o.owner)}` }); });
+  }
+  if (m.actionItems.length) {
+    h2('후속 조치');
+    B.push({ t: 'table', title: '후속 조치 계획', head: ['조치 내용', '담당', '기한'], align: ['l', 'c', 'c'], weights: [5, 2, 1.6],
+      rows: m.actionItems.map(a => [T(a.task), T(a.owner) || '미지정', T(a.due) || '미정']) });
+  }
+  B.push({ t: 'attach', text: '붙임  요구사항명세서 1부.  끝.' });
+  return B;
+}
+
+// 표준의 문단 간격: 앞 요소에 따라 빈 줄 크기(pt)를 고릅니다.
+function pumuiGap(prev, cur) {
+  if (!prev) return 0;
+  if (cur === 'h1' || cur === 'attach') return 20;
+  if (cur === 'h2') return 16;
+  if (cur === 'table') return 14;
+  if (cur === 'note') return 0;
+  if (cur === 'box') return /^h/.test(prev) ? 14 : 10;
+  return 6; // circle, dash
+}
+
+function pumuiToHTML(B) {
+  let prev = null;
+  return '<div class="pumui">' + B.map(b => {
+    const gap = pumuiGap(prev, b.t); prev = b.t;
+    const st = gap ? ` style="margin-top:${gap}pt"` : '';
+    if (b.t === 'title') return `<div class="pm-title">${esc(b.text)}</div>`;
+    if (b.t === 'h1') return `<p class="pm-h1"${st}>${esc(b.text)}</p>`;
+    if (b.t === 'h2') return `<p class="pm-h2"${st}>${esc(b.text)}</p>`;
+    if (b.t === 'box') return `<p class="pm-b pm-l2"${st}><span>□</span>${esc(b.text)}</p>`;
+    if (b.t === 'circle') return `<p class="pm-b pm-l3"${st}><span>○</span>${esc(b.text)}</p>`;
+    if (b.t === 'dash') return `<p class="pm-b pm-l4"${st}><span>-</span>${esc(b.text)}</p>`;
+    if (b.t === 'note') return `<p class="pm-note">${esc(b.text)}</p>`;
+    if (b.t === 'attach') return `<p class="pm-attach"${st}>${esc(b.text)}</p>`;
+    if (b.t === 'table') return `<p class="pm-tt"${st}>${esc(b.title)}</p><div class="doc-scroll"><table class="pm-tbl"><thead><tr>${b.head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${b.rows.map(r => `<tr>${r.map((c, i) => `<td class="${b.align[i] === 'l' ? 'l' : ''}">${esc(c).replace(/\n/g, '<br>')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    return '';
+  }).join('') + '<div class="pm-page">- 1 -</div></div>';
+}
+
+// ── HWPX(OWPML) 쓰기 ──
+// 한글이 만든 빈 문서의 구조를 따라 header.xml(글꼴·글자·문단·테두리 모양)과 section0.xml(본문)을 직접 씁니다.
+// 단위: HWPUNIT(1pt = 100, 1mm ≈ 283.465)
+const mmHU = v => Math.round(v * 283.465);
+const HWPX_NS = 'xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app" xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" xmlns:hp10="http://www.hancom.co.kr/hwpml/2016/paragraph" xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" xmlns:hhs="http://www.hancom.co.kr/hwpml/2011/history" xmlns:hm="http://www.hancom.co.kr/hwpml/2011/master-page" xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf/" xmlns:ooxmlchart="http://www.hancom.co.kr/hwpml/2016/ooxmlchart" xmlns:hwpunitchar="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar" xmlns:epub="http://www.idpf.org/2007/ops" xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0"';
+const XMLH = '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>';
+
+// 글꼴은 모두 휴먼명조(제목류는 굵게). 글자 모양: 크기 pt, 굵게, 밑줄
+const PM_CHAR = [
+  { pt: 14, f: 0 },            // 0 본문 내용
+  { pt: 12, f: 0 },            // 1 표 내용·주석·쪽 번호
+  { pt: 22, f: 0, b: 1 },      // 2 문서 제목
+  { pt: 16, f: 0, b: 1 },      // 3 대제목 1.
+  { pt: 15, f: 0, b: 1 },      // 4 중제목 가.
+  { pt: 14, f: 0, u: 1 },      // 5 표 제목(밑줄)
+  { pt: 12, f: 0, b: 1 },      // 6 표 첫 행
+  { pt: 20, f: 0 }, { pt: 16, f: 0 }, { pt: 10, f: 0 }, { pt: 6, f: 0 } // 7~10 문단 간격용 빈 줄
+];
+const PM_GAP_CHAR = { 20: 7, 16: 8, 14: 0, 10: 9, 6: 10 };
+// 문단 모양: 정렬, 줄 간격 %, 왼쪽 여백, 내어쓰기(음수)
+const PM_PARA = [
+  { al: 'JUSTIFY', ls: 160 },                         // 0 바탕(대제목)
+  { al: 'CENTER', ls: 160 },                          // 1 제목 상자·표 제목·표를 담는 문단
+  { al: 'CENTER', ls: 110 },                          // 2 표 칸(가운데)
+  { al: 'JUSTIFY', ls: 110 },                         // 3 표 칸(긴 글)
+  { al: 'JUSTIFY', ls: 100 },                         // 4 문단 간격용 빈 줄
+  { al: 'JUSTIFY', ls: 160, left: 700 },              // 5 중제목 가.(1칸 들여씀)
+  { al: 'JUSTIFY', ls: 160, left: 1400, ind: -1500 }, // 6 □
+  { al: 'JUSTIFY', ls: 160, left: 2100, ind: -1500 }, // 7 ○
+  { al: 'JUSTIFY', ls: 160, left: 2800, ind: -1000 }, // 8 -
+  { al: 'JUSTIFY', ls: 130, left: 1400, ind: -700 },  // 9 주석 *
+  { al: 'JUSTIFY', ls: 160, left: 0, ind: -2400 },    // 10 붙임
+  { al: 'CENTER', ls: 130 }                           // 11 쪽 번호·머리말
+];
+const BF = { page: 1, none: 2, cell: 3, cellL: 4, cellR: 5, cellLR: 6, head: 7, headL: 8, headR: 9, headLR: 10, titleBox: 11 };
+
+function hwpxHeader() {
+  const font = (id, face, fam) => `<hh:font id="${id}" face="${face}" type="TTF" isEmbedded="0"><hh:typeInfo familyType="${fam}" weight="6" proportion="4" contrast="0" strokeVariation="1" armStyle="1" letterform="1" midline="1" xHeight="1"/></hh:font>`;
+  const faces = ['HANGUL', 'LATIN', 'HANJA', 'JAPANESE', 'OTHER', 'SYMBOL', 'USER'].map(l => `<hh:fontface lang="${l}" fontCnt="1">${font(0, '휴먼명조', 'FCAT_MYUNGJO')}</hh:fontface>`).join('');
+  const L7 = v => ['hangul', 'latin', 'hanja', 'japanese', 'other', 'symbol', 'user'].map(k => `${k}="${v}"`).join(' ');
+  const chars = PM_CHAR.map((c, i) => `<hh:charPr id="${i}" height="${c.pt * 100}" textColor="#000000" shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="${BF.none}"><hh:fontRef ${L7(c.f)}/><hh:ratio ${L7(100)}/><hh:spacing ${L7(0)}/><hh:relSz ${L7(100)}/><hh:offset ${L7(0)}/>${c.b ? '<hh:bold/>' : ''}<hh:underline type="${c.u ? 'BOTTOM' : 'NONE'}" shape="SOLID" color="#000000"/><hh:strikeout shape="NONE" color="#000000"/><hh:outline type="NONE"/><hh:shadow type="NONE" color="#C0C0C0" offsetX="10" offsetY="10"/></hh:charPr>`).join('');
+  const margin = (p, k) => `<hh:margin><hc:intent value="${(p.ind || 0) * k}" unit="HWPUNIT"/><hc:left value="${(p.left || 0) * k}" unit="HWPUNIT"/><hc:right value="0" unit="HWPUNIT"/><hc:prev value="0" unit="HWPUNIT"/><hc:next value="0" unit="HWPUNIT"/></hh:margin><hh:lineSpacing type="PERCENT" value="${p.ls}" unit="HWPUNIT"/>`;
+  const paras = PM_PARA.map((p, i) => `<hh:paraPr id="${i}" tabPrIDRef="0" condense="0" fontLineHeight="0" snapToGrid="1" suppressLineNumbers="0" checked="0" textDir="LTR"><hh:align horizontal="${p.al}" vertical="BASELINE"/><hh:heading type="NONE" idRef="0" level="0"/><hh:breakSetting breakLatinWord="KEEP_WORD" breakNonLatinWord="KEEP_WORD" widowOrphan="0" keepWithNext="0" keepLines="0" pageBreakBefore="0" lineWrap="BREAK"/><hh:autoSpacing eAsianEng="0" eAsianNum="0"/><hp:switch><hp:case hp:required-namespace="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar">${margin(p, 1)}</hp:case><hp:default>${margin(p, 2)}</hp:default></hp:switch><hh:border borderFillIDRef="${BF.none}" offsetLeft="0" offsetRight="0" offsetTop="0" offsetBottom="0" connect="0" ignoreMargin="0"/></hh:paraPr>`).join('');
+  // 표: 0.1mm 검정 실선, 양 끝 세로선 없음, 첫 행만 음영(검정 90% 밝게)
+  const line = (on, w, c) => `type="${on ? 'SOLID' : 'NONE'}" width="${w}" color="${c}"`;
+  const bf = (id, l, r, t, b, fill, w = '0.1 mm', c = '#000000') => `<hh:borderFill id="${id}" threeD="0" shadow="0" centerLine="NONE" breakCellSeparateLine="0"><hh:slash type="NONE" Crooked="0" isCounter="0"/><hh:backSlash type="NONE" Crooked="0" isCounter="0"/><hh:leftBorder ${line(l, w, c)}/><hh:rightBorder ${line(r, w, c)}/><hh:topBorder ${line(t, w, c)}/><hh:bottomBorder ${line(b, w, c)}/><hh:diagonal type="SOLID" width="0.1 mm" color="#000000"/>${fill ? `<hc:fillBrush><hc:winBrush faceColor="${fill}" hatchColor="#999999" alpha="0"/></hc:fillBrush>` : ''}</hh:borderFill>`;
+  const G = '#E5E5E5';
+  const fills = [bf(1, 0, 0, 0, 0), bf(2, 0, 0, 0, 0, 'none'),
+    bf(3, 1, 1, 1, 1), bf(4, 0, 1, 1, 1), bf(5, 1, 0, 1, 1), bf(6, 0, 0, 1, 1),
+    bf(7, 1, 1, 1, 1, G), bf(8, 0, 1, 1, 1, G), bf(9, 1, 0, 1, 1, G), bf(10, 0, 0, 1, 1, G),
+    bf(11, 0, 0, 1, 1, null, '1.0 mm', '#2E5D8E')].join(''); // 제목 상자: 양단선 1mm
+  const styles = [['바탕글', 'Normal', 0, 0], ['본문', 'Body', 0, 0], ['쪽 번호', 'Page Number', 11, 1, 'CHAR'], ['머리말', 'Header', 11, 1], ['각주', 'Footnote', 9, 1], ['미주', 'Endnote', 9, 1], ['캡션', 'Caption', 1, 1]]
+    .map(([n, e, pp, cp, type], i) => `<hh:style id="${i}" type="${type || 'PARA'}" name="${n}" engName="${e}" paraPrIDRef="${pp}" charPrIDRef="${cp}" nextStyleIDRef="${type ? 0 : i}" langID="1042" lockForm="0"/>`).join('');
+  return `${XMLH}<hh:head ${HWPX_NS} version="1.5" secCnt="1"><hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/><hh:refList><hh:fontfaces itemCnt="7">${faces}</hh:fontfaces><hh:borderFills itemCnt="11">${fills}</hh:borderFills><hh:charProperties itemCnt="${PM_CHAR.length}">${chars}</hh:charProperties><hh:tabProperties itemCnt="1"><hh:tabPr id="0" autoTabLeft="0" autoTabRight="0"/></hh:tabProperties><hh:paraProperties itemCnt="${PM_PARA.length}">${paras}</hh:paraProperties><hh:styles itemCnt="7">${styles}</hh:styles></hh:refList><hh:compatibleDocument targetProgram="HWP201X"><hh:layoutCompatibility/></hh:compatibleDocument><hh:docOption><hh:linkinfo path="" pageInherit="0" footnoteInherit="0"/></hh:docOption><hh:trackchageConfig flags="56"/></hh:head>`;
+}
+
+function hwpxSection(B) {
+  let pid = 1, oid = 1;
+  const p = (pp, cp, inner) => `<hp:p id="${pid++}" paraPrIDRef="${pp}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="${cp}">${inner}</hp:run></hp:p>`;
+  const tp = (pp, cp, text) => p(pp, cp, text ? `<hp:t>${xmlEsc(text)}</hp:t>` : '<hp:t/>');
+  const W = 59528 - 2 * mmHU(20); // 본문 폭
+  const table = (rows, widths, cellFn, rowH = mmHU(7)) => {
+    const R = rows.length, C = widths.length;
+    const trs = rows.map((row, r) => `<hp:tr>${row.map((txt, c) => {
+      const { bf, pp, cp } = cellFn(r, c);
+      const paras = String(txt ?? '').split('\n').map(line => tp(pp, cp, line)).join('');
+      return `<hp:tc name="" header="${r === 0 && R > 1 ? 1 : 0}" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="${bf}"><hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">${paras}</hp:subList><hp:cellAddr colAddr="${c}" rowAddr="${r}"/><hp:cellSpan colSpan="1" rowSpan="1"/><hp:cellSz width="${widths[c]}" height="${rowH}"/><hp:cellMargin left="510" right="510" top="142" bottom="142"/></hp:tc>`;
+    }).join('')}</hp:tr>`).join('');
+    const id = 1000000 + oid++;
+    return p(1, 0, `<hp:tbl id="${id}" zOrder="${oid}" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="1" rowCnt="${R}" colCnt="${C}" cellSpacing="0" borderFillIDRef="${BF.page}" noAdjust="0"><hp:sz width="${W}" widthRelTo="ABSOLUTE" height="${rowH * R}" heightRelTo="ABSOLUTE" protect="0"/><hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/><hp:outMargin left="0" right="0" top="0" bottom="0"/><hp:inMargin left="510" right="510" top="142" bottom="142"/>${trs}</hp:tbl><hp:t/>`);
+  };
+  const splitW = weights => { const sum = weights.reduce((a, b) => a + b, 0); const w = weights.map(v => Math.floor(W * v / sum)); w[w.length - 1] += W - w.reduce((a, b) => a + b, 0); return w; };
+  const notePr = k => `<hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/><hp:noteLine length="${k ? 14692344 : -1}" type="SOLID" width="0.12 mm" color="#000000"/><hp:noteSpacing betweenNotes="${k ? 0 : 283}" belowLine="567" aboveLine="850"/><hp:numbering type="CONTINUOUS" newNum="1"/><hp:placement place="${k ? 'END_OF_DOCUMENT' : 'EACH_COLUMN'}" beneathText="0"/>`;
+  // 용지: A4, 위 20·아래 10·좌우 20, 머리말·꼬리말 10(mm)
+  const secPr = `<hp:secPr id="" textDirection="HORIZONTAL" spaceColumns="1134" tabStop="8000" tabStopVal="4000" tabStopUnit="HWPUNIT" outlineShapeIDRef="0" memoShapeIDRef="0" textVerticalWidthHead="0" masterPageCnt="0"><hp:grid lineGrid="0" charGrid="0" wonggojiFormat="0"/><hp:startNum pageStartsOn="BOTH" page="0" pic="0" tbl="0" equation="0"/><hp:visibility hideFirstHeader="0" hideFirstFooter="0" hideFirstMasterPage="0" border="SHOW_ALL" fill="SHOW_ALL" hideFirstPageNum="0" hideFirstEmptyLine="0" showLineNumber="0"/><hp:lineNumberShape restartType="0" countBy="0" distance="0" startNumber="0"/><hp:pagePr landscape="WIDELY" width="59528" height="84186" gutterType="LEFT_ONLY"><hp:margin header="${mmHU(10)}" footer="${mmHU(10)}" gutter="0" left="${mmHU(20)}" right="${mmHU(20)}" top="${mmHU(20)}" bottom="${mmHU(10)}"/></hp:pagePr><hp:footNotePr>${notePr(0)}</hp:footNotePr><hp:endNotePr>${notePr(1)}</hp:endNotePr>${['BOTH', 'EVEN', 'ODD'].map(t => `<hp:pageBorderFill type="${t}" borderFillIDRef="${BF.page}" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER"><hp:offset left="1417" right="1417" top="1417" bottom="1417"/></hp:pageBorderFill>`).join('')}</hp:secPr>`;
+  // 첫 문단: 구역 설정, 단 설정, 쪽 번호(가운데 아래 "- 1 -")
+  let body = `<hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="0">${secPr}<hp:ctrl><hp:colPr id="" type="NEWSPAPER" layout="LEFT" colCount="1" sameSz="1" sameGap="0"/></hp:ctrl><hp:ctrl><hp:pageNum pos="BOTTOM_CENTER" formatType="DIGIT" sideChar="-"/></hp:ctrl></hp:run><hp:run charPrIDRef="0"><hp:t/></hp:run></hp:p>`;
+  let prev = null;
+  for (const b of B) {
+    const gap = pumuiGap(prev, b.t); prev = b.t;
+    if (gap) body += tp(4, PM_GAP_CHAR[gap], '');
+    if (b.t === 'title') body += table([[b.text]], [W], () => ({ bf: BF.titleBox, pp: 1, cp: 2 }), mmHU(15));
+    else if (b.t === 'h1') body += tp(0, 3, b.text);
+    else if (b.t === 'h2') body += tp(5, 4, b.text);
+    else if (b.t === 'box') body += tp(6, 0, `□ ${b.text}`);
+    else if (b.t === 'circle') body += tp(7, 0, `○ ${b.text}`);
+    else if (b.t === 'dash') body += tp(8, 0, `- ${b.text}`);
+    else if (b.t === 'note') body += tp(9, 1, b.text);
+    else if (b.t === 'attach') body += tp(10, 0, b.text);
+    else if (b.t === 'table') {
+      body += tp(1, 5, b.title);
+      const C = b.head.length;
+      const edge = c => (C === 1 ? 'LR' : c === 0 ? 'L' : c === C - 1 ? 'R' : '');
+      body += table([b.head, ...b.rows], splitW(b.weights), (r, c) => ({
+        bf: BF[(r === 0 ? 'head' : 'cell') + edge(c)],
+        pp: r === 0 || b.align[c] !== 'l' ? 2 : 3,
+        cp: r === 0 ? 6 : 1
+      }));
+    }
+  }
+  return `${XMLH}<hs:sec ${HWPX_NS}>${body}</hs:sec>`;
+}
+
+// 압축 파일 구성은 한글이 저장한 빈 문서와 같습니다(mimetype은 압축하지 않고 맨 앞).
+function hwpxParts(ctx) {
+  const B = buildPumuiBlocks(ctx);
+  const title = B[0].text;
+  const stamp = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
+  const pkg = 'http://www.hancom.co.kr/hwpml/2016/meta/pkg#';
+  return [
+    ['mimetype', 'application/hwp+zip'],
+    ['version.xml', `${XMLH}<hv:HCFVersion xmlns:hv="http://www.hancom.co.kr/hwpml/2011/version" tagetApplication="WORDPROCESSOR" major="5" minor="1" micro="1" buildNumber="0" os="1" xmlVersion="1.5" application="Hancom Office Hangul" appVersion="13, 0, 0, 1408 WIN32LEWindows_10"/>`],
+    ['Contents/header.xml', hwpxHeader()],
+    ['Contents/section0.xml', hwpxSection(B)],
+    ['Preview/PrvText.txt', title + '\r\n'],
+    ['settings.xml', `${XMLH}<ha:HWPApplicationSetting xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app" xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0"><ha:CaretPosition listIDRef="0" paraIDRef="0" pos="0"/></ha:HWPApplicationSetting>`],
+    ['META-INF/container.rdf', `${XMLH}<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about=""><ns0:hasPart xmlns:ns0="${pkg}" rdf:resource="Contents/header.xml"/></rdf:Description><rdf:Description rdf:about="Contents/header.xml"><rdf:type rdf:resource="${pkg}HeaderFile"/></rdf:Description><rdf:Description rdf:about=""><ns0:hasPart xmlns:ns0="${pkg}" rdf:resource="Contents/section0.xml"/></rdf:Description><rdf:Description rdf:about="Contents/section0.xml"><rdf:type rdf:resource="${pkg}SectionFile"/></rdf:Description><rdf:Description rdf:about=""><rdf:type rdf:resource="${pkg}Document"/></rdf:Description></rdf:RDF>`],
+    ['Contents/content.hpf', `${XMLH}<opf:package ${HWPX_NS} version="" unique-identifier="" id=""><opf:metadata><opf:title>${xmlEsc(title)}</opf:title><opf:language>ko</opf:language><opf:meta name="creator" content="text">${xmlEsc(ctx.tx(ctx.meta.author || ''))}</opf:meta><opf:meta name="subject" content="text"/><opf:meta name="description" content="text">모두의 요구사항 한 번에!로 작성</opf:meta><opf:meta name="CreatedDate" content="text">${stamp}</opf:meta><opf:meta name="ModifiedDate" content="text">${stamp}</opf:meta><opf:meta name="keyword" content="text"/></opf:metadata><opf:manifest><opf:item id="header" href="Contents/header.xml" media-type="application/xml"/><opf:item id="section0" href="Contents/section0.xml" media-type="application/xml"/><opf:item id="settings" href="settings.xml" media-type="application/xml"/></opf:manifest><opf:spine><opf:itemref idref="header" linear="yes"/><opf:itemref idref="section0" linear="yes"/></opf:spine></opf:package>`],
+    ['META-INF/container.xml', `${XMLH}<ocf:container xmlns:ocf="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf"><ocf:rootfiles><ocf:rootfile full-path="Contents/content.hpf" media-type="application/hwpml-package+xml"/><ocf:rootfile full-path="Preview/PrvText.txt" media-type="text/plain"/><ocf:rootfile full-path="META-INF/container.rdf" media-type="application/rdf+xml"/></ocf:rootfiles></ocf:container>`],
+    ['META-INF/manifest.xml', `${XMLH}<odf:manifest xmlns:odf="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"/>`]
+  ];
+}
+
+async function buildPumuiHwpx(ctx) {
+  await loadScript(CDN.jszip);
+  const zip = new window.JSZip();
+  for (const [name, data] of hwpxParts(ctx)) zip.file(name, data, name === 'mimetype' ? { compression: 'STORE', createFolders: false } : { createFolders: false });
+  return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: 'application/hwp+zip' });
+}
+
+// ───────── 요구사항명세서 (사내 Excel 양식) ─────────
+// 1행: 관련개발요청 | 건명(B~D 병합) | 작성자 | 이름 | 작성일 | 날짜, 3행: 머리글(필터), 4행부터 요구사항
+const SPEC_COLS = [
+  { label: '요구사항 ID', w: 14, al: 'c', get: r => r.id },
+  { label: '유형', w: 10, al: 'c', get: r => r.category, list: CATEGORIES },
+  { label: '품질속성', w: 12, al: 'c', get: r => r.quality, list: QUALITIES },
+  { label: '요구사항명', w: 34, al: 'l', get: (r, T) => T(r.title) },
+  { label: '상세설명', w: 70, al: 'l', get: (r, T) => [T(r.description), r.status !== '수용' ? `[${r.status}] ${T(r.statusReason)}` : '', r.acceptanceCriteria.length ? '[검수 기준]\n' + r.acceptanceCriteria.map(a => '- ' + T(a)).join('\n') : ''].filter(Boolean).join('\n') },
+  { label: '긴급도', w: 8, al: 'c', get: r => r.priority, list: PRIORITIES },
+  { label: '난이도', w: 8, al: 'c', get: r => r.difficulty, list: PRIORITIES },
+  { label: '출처', w: 30, al: 'l', get: (r, T, ctx) => r.sources.map(s => `${s.ref} ${ctx.srcTitle(s.ref)}${s.who ? `(${T(s.who)})` : ''}`).join('\n') }
+];
+
+function specRows(ctx) {
+  return ctx.result.requirements.map(r => SPEC_COLS.map(c => String(c.get(r, ctx.tx, ctx) ?? '')));
+}
+
+function specToHTML(ctx) {
+  const T = ctx.tx;
+  return `<div class="spec"><table class="spec-meta"><tr><th>관련개발요청</th><td>${esc(T(ctx.meta.title || ctx.result.project.title))}</td><th>작성자</th><td>${esc(T(ctx.meta.author))}</td><th>작성일</th><td>${esc(ctx.meta.date)}</td></tr></table>
+  <div class="doc-scroll"><table class="spec-tbl"><thead><tr>${SPEC_COLS.map(c => `<th>${esc(c.label)}</th>`).join('')}</tr></thead><tbody>${specRows(ctx).map(row => `<tr>${row.map((v, i) => `<td class="${SPEC_COLS[i].al}">${esc(v).replace(/\n/g, '<br>')}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+}
+
+// 서식(노란 머리글, 테두리, 병합, 필터, 목록)을 넣기 위해 xlsx를 직접 만듭니다.
+function specXlsxParts(ctx) {
+  const T = ctx.tx;
+  const colL = i => String.fromCharCode(65 + i);
+  const cell = (ref, v, s) => `<c r="${ref}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`;
+  // 스타일: 1 노란 라벨, 2 값, 3 머리글, 4 내용 가운데, 5 내용 왼쪽
+  const data = specRows(ctx);
+  const rows = [
+    `<row r="1">${cell('A1', '관련개발요청', 1)}${cell('B1', T(ctx.meta.title || ctx.result.project.title), 2)}${cell('C1', '', 2)}${cell('D1', '', 2)}${cell('E1', '작성자', 1)}${cell('F1', T(ctx.meta.author), 2)}${cell('G1', '작성일', 1)}${cell('H1', ctx.meta.date, 2)}</row>`,
+    `<row r="3">${SPEC_COLS.map((c, i) => cell(colL(i) + 3, c.label, 3)).join('')}</row>`,
+    ...data.map((row, k) => `<row r="${k + 4}">${row.map((v, i) => cell(colL(i) + (k + 4), v, SPEC_COLS[i].al === 'c' ? 4 : 5)).join('')}</row>`)
+  ];
+  const end = data.length + 3;
+  const dv = SPEC_COLS.map((c, i) => (c.list ? `<dataValidation type="list" allowBlank="1" showErrorMessage="1" sqref="${colL(i)}4:${colL(i)}${end + 200}"><formula1>"${c.list.join(',')}"</formula1></dataValidation>` : '')).filter(Boolean);
+  const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetViews><sheetView workbookViewId="0"><pane ySplit="3" topLeftCell="A4" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="16.5"/><cols>${SPEC_COLS.map((c, i) => `<col min="${i + 1}" max="${i + 1}" width="${c.w}" customWidth="1"/>`).join('')}</cols><sheetData>${rows.join('')}</sheetData><autoFilter ref="A3:H${end}"/><mergeCells count="1"><mergeCell ref="B1:D1"/></mergeCells><dataValidations count="${dv.length}">${dv.join('')}</dataValidations><pageMargins left="0.5" right="0.5" top="0.75" bottom="0.75" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="landscape"/></worksheet>`;
+  const font = b => `<font>${b ? '<b/>' : ''}<sz val="10"/><name val="맑은 고딕"/><family val="3"/><charset val="129"/></font>`;
+  const side = k => `<${k} style="thin"><color rgb="FF808080"/></${k}>`;
+  const xf = (f, fill, h, v = 'center') => `<xf numFmtId="0" fontId="${f}" fillId="${fill}" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="${h}" vertical="${v}" wrapText="1"/></xf>`;
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2">${font(0)}${font(1)}</fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFFF00"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border>${['left', 'right', 'top', 'bottom'].map(side).join('')}<diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>${xf(1, 2, 'center')}${xf(0, 0, 'left')}${xf(1, 2, 'center')}${xf(0, 0, 'center')}${xf(0, 0, 'left', 'top')}</cellXfs><cellStyles count="1"><cellStyle name="표준" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  const SHEET = '요구사항명세(상세)';
+  return [
+    ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'],
+    ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+    ['xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${SHEET}" sheetId="1" r:id="rId1"/></sheets><definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">'${SHEET}'!$A$3:$H$${end}</definedName></definedNames></workbook>`],
+    ['xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
+    ['xl/worksheets/sheet1.xml', sheet],
+    ['xl/styles.xml', styles]
+  ];
+}
+
+async function buildSpecXlsx(ctx) {
+  await loadScript(CDN.jszip);
+  const zip = new window.JSZip();
+  for (const [name, data] of specXlsxParts(ctx)) zip.file(name, data, { createFolders: false });
+  return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+// ───────── 상태 ─────────
+const LS_TPL = 'reqai.template.v1', LS_META = 'reqai.meta.v1';
+const lsGet = k => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* 저장 불가 환경 */ } };
+
+const S = {
+  step: 1,
+  sources: [], nextId: 1,
+  M: createMasker(),
+  ai: { state: 'checking', provider: null, model: '', note: '', sample: null, downloads: null },
+  trace: [], importLog: null,
+  precise: false,
+  result: null, history: [], resolved: new Set(),
+  tab: 'req', reqFilter: '전체', openReq: null, editReq: null, editBuf: null, delArm: false,
+  showOriginal: true, exportRestore: true,
+  run: null,
+  apply: { kind: 'reply', from: '', date: today(), text: '', previewed: false },
+  meta: Object.assign({ docName: '', title: '', dept: '', author: '', date: today(), system: '', version: 'v1.0', due: '' }, lsGet(LS_META) || {}, { date: today() }),
+  tplKey: 'std', template: lsGet(LS_TPL) || clone(TEMPLATE_PRESETS.std)
+};
+
+function addSource(kind, fields) {
+  const s = Object.assign({ id: 'S' + S.nextId++, kind, title: '', author: '', date: today(), text: '' }, fields);
+  S.sources.push(s);
+  return s;
+}
+function loadSample() {
+  S.sources = []; S.nextId = 1; S.M = createMasker();
+  SAMPLE_SOURCES.forEach(s => addSource(s.kind, clone(s)));
+  S.result = null; S.history = []; S.resolved = new Set(); S.run = null; S.trace = []; S.importLog = null;
+  S.meta.title = ''; S.meta.dept = S.meta.dept || '○○사업부';
+}
+function sampleIntact() {
+  const base = S.sources.filter(s => s.kind !== 'reply');
+  return base.length === SAMPLE_SOURCES.length && SAMPLE_SOURCES.every((x, i) => base[i].text.trim() === x.text.trim() && base[i].kind === x.kind);
+}
+function maskAll(list = S.sources) {
+  for (const s of list) { s.mTitle = maskText(S.M, s.title); s.mAuthor = maskText(S.M, s.author); s.masked = maskText(S.M, s.text); }
+  return list;
+}
+function bindDemo(obj) {
+  return JSON.parse(JSON.stringify(obj).replace(/\{\{([^}]+)\}\}/g, (_, name) => {
+    for (const it of S.M.items.values()) if (it.on && it.value === name) return it.token;
+    return name;
+  }));
+}
+const srcById = id => S.sources.find(s => s.id === id);
+const R = t => richText(S.M, t, S.showOriginal);
+
+// ───────── AI 연결 확인 ─────────
+// 사내 LLM(serve.py 프록시)이 설정돼 있으면 그것을 먼저 쓰고, 아니면 claude.ai, 둘 다 없으면 예시 모드입니다.
+async function detectAI() {
+  try {
+    if (CFG.llm && CFG.llm.endpoint) {
+      S.ai.provider = 'local'; S.ai.model = CFG.llm.model || '';
+      const h = await fetch(CFG.llm.health || '/api/health', { cache: 'no-store' }).then(r => r.json()).catch(() => ({ ok: false, error: 'serve.py에 연결하지 못했습니다.' }));
+      S.ai.state = h.ok ? 'ready' : 'down';
+      S.ai.note = h.ok ? '' : (h.error || '사내 LLM에 연결하지 못했습니다.');
+      if (h.model) S.ai.model = h.model;
+    } else if (window.claude && typeof window.claude.use === 'function') {
+      S.ai.provider = 'claude';
+      const [sample, downloads] = await Promise.all([window.claude.use('sample'), window.claude.use('downloads')]);
+      S.ai.sample = sample; S.ai.downloads = downloads;
+      S.ai.state = typeof sample === 'function' ? 'ready' : 'demo';
+    } else S.ai.state = 'demo';
+  } catch { S.ai.state = 'demo'; }
+  renderBadge();
+  if (S.step === 3) render();
+}
+function renderBadge() {
+  const el = $('#ai-badge');
+  const st = S.ai.state;
+  el.className = 'ai-badge ' + st;
+  const local = S.ai.provider === 'local';
+  el.innerHTML = st === 'ready' ? (local ? `<i></i>사내 LLM 연결됨${S.ai.model ? ' · ' + esc(S.ai.model) : ''}` : '<i></i>AI 연결됨')
+    : st === 'checking' ? '<i></i>AI 연결 확인 중'
+    : st === 'denied' ? '<i></i>AI 사용 안 함 · 예시 모드'
+    : st === 'down' ? '<i></i>사내 LLM 연결 안 됨 · 예시 모드'
+    : '<i></i>예시 모드 · AI 미연결';
+  el.title = st === 'ready' ? (local ? '분석은 settings.json에 지정한 사내 LLM으로 실행됩니다.' : '분석은 보는 사람의 Claude 계정으로 실행됩니다.')
+    : st === 'down' ? S.ai.note + ' 사용자 매뉴얼의 문제 해결을 참고하세요.'
+    : 'claude.ai나 사내 LLM에 연결하면 내 자료를 AI로 분석할 수 있습니다. 지금은 예시 결과로 모든 기능을 체험할 수 있습니다.';
+}
+
+// ───────── 렌더링 ─────────
+const STEPS = [
+  { n: 1, label: '자료 입력' }, { n: 2, label: '민감정보 가리기' }, { n: 3, label: 'AI 분석' }, { n: 4, label: '검토·점검' }, { n: 5, label: '문서 만들기' }
+];
+function canGo(n) {
+  if (n <= 2) return true;
+  if (n === 3) return S.sources.some(s => s.text.trim());
+  return !!S.result;
+}
+function render() {
+  $('#stepper').innerHTML = STEPS.map(s => `<button class="step ${S.step === s.n ? 'on' : ''} ${s.n < S.step || (s.n > 3 && S.result) ? 'done' : ''}" data-act="go" data-n="${s.n}" ${canGo(s.n) ? '' : 'disabled'} aria-current="${S.step === s.n ? 'step' : 'false'}"><b>${s.n}</b><span>${s.label}</span></button>`).join('<span class="step-line" aria-hidden="true"></span>');
+  const v = [null, viewInput, viewMask, viewAnalyze, viewReview, viewExport][S.step];
+  $('#main').innerHTML = v();
+  afterRender();
+}
+function afterRender() {
+  $$('textarea[data-autosize]').forEach(autosize);
+}
+function autosize(t) { t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight + 2, 640) + 'px'; }
+function go(n) { if (!canGo(n)) return; S.step = n; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+
+const pill = st => `<span class="pill ${STATUS_CLASS[st] || ''}">${esc(st)}</span>`;
+const refChip = ref => { const s = srcById(ref); return ref ? `<button class="ref" data-act="src" data-id="${esc(ref)}" title="${esc(s ? s.title : '')}">${esc(ref)}${s ? `<small>${esc(KIND_LABEL[s.kind])}</small>` : ''}</button>` : ''; };
+const reqChip = id => id ? `<button class="reqchip" data-act="goreq" data-id="${esc(id)}">${esc(id)}</button>` : '<span class="reqchip all">전체</span>';
+
+// 1단계: 자료 입력
+function viewInput() {
+  const total = S.sources.reduce((a, s) => a + s.text.length, 0);
+  const col = kind => {
+    const list = S.sources.filter(s => s.kind === kind || (kind === 'meeting' && s.kind === 'reply'));
+    return `<section class="src-col">
+      <header><h3>${KIND_LABEL[kind]}</h3><span class="muted">${{ need: '요청 메일·전화 메모·공문', meeting: '회의록·녹취 정리·회신', doc: '규정·매뉴얼·기존 설계서' }[kind]}</span></header>
+      ${list.map(s => `<article class="src-card">
+        <div class="src-head"><span class="sid">${s.id}</span>${s.kind === 'reply' ? '<span class="tag">회신</span>' : `<select class="kind-sel" data-act="srckind" data-id="${s.id}" aria-label="${s.id} 구분" title="구분 바꾸기">${['need', 'meeting', 'doc'].map(k => `<option value="${k}" ${s.kind === k ? 'selected' : ''}>${KIND_LABEL[k]}</option>`).join('')}</select>`}<input id="t-${s.id}" class="src-title" data-bind="src:${s.id}:title" value="${esc(s.title)}" placeholder="제목" aria-label="${s.id} 제목"><button class="icon-btn" data-act="delsrc" data-id="${s.id}" aria-label="${s.id} 삭제" title="삭제">×</button></div>
+        <div class="src-meta"><input id="a-${s.id}" data-bind="src:${s.id}:author" value="${esc(s.author)}" placeholder="작성·요청자 (예: 홍길동 과장, 운영팀)" aria-label="${s.id} 작성자"><input id="d-${s.id}" data-bind="src:${s.id}:date" value="${esc(s.date)}" placeholder="일자" aria-label="${s.id} 일자" class="date"></div>
+        <textarea id="x-${s.id}" data-bind="src:${s.id}:text" data-autosize rows="6" placeholder="내용을 붙여 넣으세요" aria-label="${s.id} 내용">${esc(s.text)}</textarea>
+        ${s.fileName ? `<div class="muted small">파일에서 읽음: ${esc(s.fileName)}</div>` : ''}
+      </article>`).join('') || `<div class="empty">아직 자료가 없습니다.</div>`}
+      <div class="src-add">
+        <button class="btn ghost" data-act="addsrc" data-kind="${kind}">+ 직접 입력</button>
+        <label class="drop" data-kind="${kind}"><input type="file" data-file="${kind}" multiple accept="${ACCEPT}"><span>파일 올리기</span><small>PDF · Word · Excel · PPT · HWPX · TXT</small></label>
+      </div>
+    </section>`;
+  };
+  const intact = sampleIntact();
+  return `
+  <div class="intro">
+    <div>
+      <h2>흩어진 자료를 넣으면, 빠짐없는 요구사항 정의서가 나옵니다</h2>
+      <p>고객 요청, 회의록, 참고 문서를 넣으세요. 민감정보를 먼저 가린 뒤 AI가 요구사항을 뽑고, 출처를 달고, 빠진 것과 서로 다른 의견을 찾아 확인 질문까지 만듭니다.</p>
+    </div>
+    ${intact ? `<div class="sample-note"><b>예시 자료가 들어 있습니다</b><span>가상의 '가맹점 매출조회 포털 개선' 건입니다. 고객 메일, 회의록, 참고 문서가 하나씩 있습니다.</span><div class="row"><button class="btn primary" data-act="demo-fast">예시 결과 바로 보기</button><button class="btn ghost" data-act="clear">지우고 내 자료 넣기</button></div></div>`
+      : `<div class="sample-note"><b>내 자료로 작업 중</b><span>자료는 이 브라우저에만 있고, 창을 닫으면 사라집니다.</span><div class="row"><button class="btn ghost" data-act="sample">예시 자료 다시 불러오기</button></div></div>`}
+  </div>
+  <div class="bulk">
+    <label class="drop bulk-drop" data-kind="auto"><input type="file" data-file="auto" multiple accept="${ACCEPT}"><span>폴더째 끌어다 놓기</span><small>폴더나 여러 파일을 한 번에 놓으면 하위 폴더까지 읽고, 파일·폴더 이름으로 고객 니즈 · 회의 내용 · 참고 문서를 나눕니다. 구분은 카드에서 바꿀 수 있습니다.</small></label>
+    <label class="btn folder-btn"><input type="file" data-file="auto" webkitdirectory multiple>폴더 선택</label>
+  </div>
+  ${importNote()}
+  <div class="src-grid">${col('need')}${col('meeting')}${col('doc')}</div>
+  <div class="bar"><span class="muted" id="src-count">자료 ${S.sources.length}건 · ${fmtNum(total)}자</span><button class="btn primary" data-act="go" data-n="2" ${canGo(3) ? '' : 'disabled'}>다음: 민감정보 가리기 →</button></div>`;
+}
+
+function importNote() {
+  const L = S.importLog;
+  if (!L) return '';
+  const by = ['need', 'meeting', 'doc'].map(k => [k, L.added.filter(a => a.kind === k).length]).filter(x => x[1]);
+  return `<div class="notice ${L.failed.length ? 'warn' : 'ok'} import-note">
+    <b>${L.from} ${fmtNum(L.added.length)}개를 자료로 넣었습니다.</b> ${by.map(([k, n]) => `${KIND_LABEL[k]} ${n}`).join(' · ')}
+    ${L.skipped.length ? `<div class="small">건너뜀 ${L.skipped.length}개 (지원하지 않는 형식·숨김·임시 파일): ${esc(L.skipped.slice(0, 6).join(', '))}${L.skipped.length > 6 ? ' 외' : ''}</div>` : ''}
+    ${L.failed.length ? `<div class="small">읽지 못함 ${L.failed.length}개: ${L.failed.map(f => `${esc(f.path)} (${esc(f.error)})`).join(', ')}</div>` : ''}
+    <button class="icon-btn" data-act="closeimport" aria-label="알림 닫기">×</button>
+  </div>`;
+}
+
+// 2단계: 마스킹
+function viewMask() {
+  maskAll();
+  const all = s => `${s.title}
+${s.author}
+${s.text}`;
+  const items = [...S.M.items.values()].filter(it => S.sources.some(s => all(s).includes(it.value)));
+  const counts = new Map();
+  for (const s of S.sources) for (const sp of findSpans(S.M, all(s))) counts.set(sp.item.key, (counts.get(sp.item.key) || 0) + 1);
+  const groups = MASK_TYPES.map(t => [t, items.filter(i => i.type === t)]).filter(g => g[1].length);
+  const onCount = items.filter(i => i.on).length;
+  return `
+  <div class="mask-layout">
+    <aside class="panel mask-side">
+      <h3>찾은 민감정보 <span class="count">${items.length}</span></h3>
+      <p class="muted small">체크된 항목은 AI에 보내기 전에 토큰으로 바뀝니다. 원래 값은 이 브라우저에만 남고, 결과 화면과 내려받는 문서에서 다시 채워집니다.</p>
+      ${groups.map(([t, list]) => `<div class="mgroup"><h4>${esc(t)}</h4>${list.map(it => `<label class="mrow ${it.on ? '' : 'off'}"><input type="checkbox" data-act="mtoggle" data-key="${esc(it.key)}" ${it.on ? 'checked' : ''}><span class="mval">${esc(it.value)}</span><span class="mtok">${esc(it.token)}</span><span class="mcnt">${counts.get(it.key) || 0}회</span></label>`).join('')}</div>`).join('') || '<div class="empty">자동으로 찾은 항목이 없습니다.</div>'}
+      <div class="mgroup">
+        <h4>직접 가릴 단어</h4>
+        <div class="row"><input id="custom-word" placeholder="예: 기관명, 사업명, 프로젝트 코드" aria-label="가릴 단어"><button class="btn" data-act="addword">추가</button></div>
+        <div class="chips">${S.M.custom.map((w, i) => `<span class="chip">${esc(w)}<button data-act="delword" data-i="${i}" aria-label="${esc(w)} 제거">×</button></span>`).join('')}</div>
+      </div>
+      <p class="muted small">자동 탐지: 이름(직위 앞), 휴대폰·전화, 이메일, 카드·계좌·주민·사업자번호, IP 주소</p>
+    </aside>
+    <section class="mask-preview">
+      <div class="notice"><b>AI에는 아래처럼 가려진 내용만 전송됩니다.</b> 검게 가린 부분은 ${onCount}종, 점선은 가리지 않기로 한 값입니다.</div>
+      ${S.sources.filter(s => s.text.trim()).map(s => `<article class="panel prev"><header><span class="sid">${s.id}</span><b>${maskPreviewHTML(S.M, s.title || '(제목 없음)')}</b><span class="muted">${esc(KIND_LABEL[s.kind])}</span></header><div class="prev-meta">${maskPreviewHTML(S.M, s.author || '작성자 미상')} · ${esc(s.date)}</div><pre class="prev-text">${maskPreviewHTML(S.M, s.text)}</pre></article>`).join('')}
+    </section>
+  </div>
+  <div class="bar"><button class="btn ghost" data-act="go" data-n="1">← 자료 입력</button><button class="btn primary" data-act="go" data-n="3">이대로 AI 분석 준비 →</button></div>`;
+}
+
+// 3단계: 분석
+function viewAnalyze() {
+  maskAll();
+  const list = S.sources.filter(s => s.text.trim());
+  const chars = list.reduce((a, s) => a + s.masked.length, 0);
+  const masked = [...S.M.items.values()].filter(i => i.on && list.some(s => `${s.title}
+${s.author}
+${s.text}`.includes(i.value))).length;
+  const ai = S.ai.state, intact = sampleIntact(), run = S.run;
+  const busy = run && run.busy;
+  let actions = '';
+  if (ai === 'ready') actions += `<button class="btn primary big" data-act="analyze" ${busy ? 'disabled' : ''}>AI로 분석 시작</button><label class="check"><input type="checkbox" id="precise" data-act="precise" ${S.precise ? 'checked' : ''}> 정밀 분석 (더 오래 걸림)</label>`;
+  if (intact) actions += `<button class="btn ${ai === 'ready' ? 'ghost' : 'primary big'}" data-act="demo" ${busy ? 'disabled' : ''}>예시 분석 결과 불러오기</button>`;
+  let note = '';
+  if (ai === 'checking') note = '<p class="muted">AI 연결을 확인하고 있습니다…</p>';
+  else if (ai !== 'ready' && !intact) note = `<div class="notice warn"><b>지금 화면에서는 AI를 쓸 수 없습니다.</b> ${ai === 'down' ? esc(S.ai.note) + ' settings.json의 llm 설정과 serve.py 실행 창의 메시지를 확인하세요.' : '이 페이지를 claude.ai에 로그인한 상태로 열거나, serve.py로 사내 LLM에 연결하면 내 자료를 분석할 수 있습니다.'} 예시 자료로 돌아가면 미리 분석한 결과로 모든 기능을 체험할 수 있습니다. <button class="btn ghost" data-act="sample">예시 자료 불러오기</button></div>`;
+  else if (ai !== 'ready') note = '<p class="muted small">AI가 연결되지 않은 화면입니다. 예시 자료를 미리 분석해 둔 결과로 다음 단계를 모두 체험할 수 있습니다.</p>';
+  else if (S.ai.provider === 'local') note = `<p class="muted small">분석은 사내 LLM(${esc(S.ai.model || '설정된 모델')})으로 실행됩니다. 가린 내용만 serve.py를 거쳐 전송됩니다.${intact ? ' 예시 자료는 미리 분석한 결과를 바로 불러올 수도 있습니다.' : ''}</p>`;
+  else note = `<p class="muted small">분석은 이 페이지를 연 사람의 Claude 계정으로 실행됩니다. 처음 실행할 때 사용 허용 여부를 묻습니다.${intact ? ' 예시 자료는 미리 분석한 결과를 바로 불러올 수도 있습니다.' : ''}</p>`;
+  return `
+  <div class="analyze">
+    <section class="panel send-sum">
+      <h3>AI에 보낼 내용</h3>
+      <dl class="stats"><div><dt>자료</dt><dd>${list.length}<small>건</small></dd></div><div><dt>글자 수</dt><dd>${fmtNum(chars)}<small>자</small></dd></div><div><dt>가린 민감정보</dt><dd>${masked}<small>종</small></dd></div></dl>
+      <ul class="src-mini">${list.map(s => `<li><span class="sid">${s.id}</span>${esc(KIND_LABEL[s.kind])} · ${R(s.mTitle || '(제목 없음)')}</li>`).join('')}</ul>
+      <button class="btn ghost small" data-act="go" data-n="2">가린 내용 다시 보기</button>
+    </section>
+    <section class="panel run-panel">
+      <h3>분석 단계</h3>
+      <ol class="stages">${stageList().map(st => `<li class="${st.state}"><i></i><div><b>${st.label}</b><span>${st.desc}</span></div></li>`).join('')}</ol>
+      <div id="run-box">${S.run && S.run.where !== 'apply' ? runBox() : ''}</div>
+      <div class="row wrap">${actions}${busy ? '<button class="btn danger" data-act="stop">멈추기</button>' : ''}</div>
+      ${note}
+      ${S.result && !busy ? `<div class="bar inner"><span>분석 결과가 있습니다: 요구사항 ${S.result.requirements.length}건</span><button class="btn primary" data-act="go" data-n="4">검토·점검으로 →</button></div>` : ''}
+    </section>
+  </div>`;
+}
+function engineLabel() {
+  return S.ai.provider === 'local' ? `사내 LLM (${S.ai.model || '모델 미지정'}${S.precise && CFG.llm?.modelPrecise ? ', 정밀: ' + CFG.llm.modelPrecise : ''})` : `Claude (claude.ai, ${S.precise ? '정밀' : '기본'} 등급)`;
+}
+const STAGE_DEFS = [
+  { label: '요구사항 추출·분류', desc: '요청 문장을 찾아 유형을 나누고 출처를 답니다' },
+  { label: '회의 내용 분석', desc: 'AS-IS/TO-BE, 수용 여부, 결정·미결·후속 조치' },
+  { label: '누락·충돌 점검', desc: '필수 항목 누락, 상충 의견, 모호한 표현' },
+  { label: '확인 질문 작성', desc: '누구에게 무엇을 물을지 대상자별로 묶습니다' }
+];
+function stageList() {
+  const st = (S.run && S.run.where !== 'apply' && S.run.stages) || STAGE_DEFS.map(() => (S.result ? 'done' : 'wait'));
+  return STAGE_DEFS.map((d, i) => Object.assign({ state: st[i] }, d));
+}
+function runBox() {
+  const r = S.run;
+  if (!r) return '';
+  if (r.error) return `<div class="notice err">${esc(r.error)}</div>`;
+  if (r.busy) return `<div class="live"><span class="spinner" aria-hidden="true"></span><span>${esc(r.msg || 'AI가 자료를 읽고 있습니다')}</span><span class="muted" id="run-meta">${r.chars ? fmtNum(r.chars) + '자 작성 · ' : ''}${Math.round((Date.now() - r.t0) / 1000)}초</span></div>`;
+  return r.done ? `<div class="notice ok">${esc(r.done)}</div>` : '';
+}
+function updateRunBox() { const b = $('#run-box'); if (b) b.innerHTML = runBox(); }
+
+// 4단계: 검토
+function viewReview() {
+  const r = S.result;
+  const c = r.checks;
+  const open = (k, l) => l.filter(x => !S.resolved.has(checkKey(k, x))).length;
+  const nChecks = open('missing', c.missing) + open('conflicts', c.conflicts) + open('ambiguous', c.ambiguous);
+  const tabs = [['req', '요구사항', r.requirements.length], ['meeting', '회의 분석', r.meeting.openIssues.length ? `미결 ${r.meeting.openIssues.length}` : ''], ['checks', '누락·충돌 점검', nChecks], ['mail', '확인 질문 메일', r.questions.length], ['apply', '회신 반영·이력', S.history.length]];
+  const body = { req: tabReq, meeting: tabMeeting, checks: tabChecks, mail: tabMail, apply: tabApply }[S.tab]();
+  return `
+  <div class="review-head">
+    <div><span class="eyebrow">${r.isDemo ? '예시 결과 · 미리 분석한 데이터' : 'AI 분석 결과'}</span><h2>${R(r.project.title)}</h2><p class="muted">${R(r.project.summary)}</p></div>
+    <div class="review-tools"><label class="switch"><input type="checkbox" data-act="orig" ${S.showOriginal ? 'checked' : ''}><span>가린 값 복원해서 보기</span></label><button class="btn ghost small" data-act="dl" data-f="trace" title="요구사항별 판단 근거, AI 호출 기록, 변경 이력을 Markdown으로 내려받습니다">AI 판단 기록 (.md)</button></div>
+  </div>
+  <nav class="tabs" role="tablist">${tabs.map(([k, l, n]) => `<button role="tab" aria-selected="${S.tab === k}" class="${S.tab === k ? 'on' : ''}" data-act="tab" data-k="${k}">${l}${n !== '' && n !== 0 ? `<span class="count">${n}</span>` : ''}</button>`).join('')}</nav>
+  <div class="tab-body">${body}</div>
+  <div class="bar"><button class="btn ghost" data-act="go" data-n="3">← 분석</button><button class="btn primary" data-act="go" data-n="5">다음: 문서 만들기 →</button></div>`;
+}
+
+function tabReq() {
+  const reqs = S.result.requirements;
+  const cnt = s => reqs.filter(r => r.status === s).length;
+  const total = reqs.length || 1;
+  const confirmed = reqs.filter(r => r.confirmed).length;
+  const list = S.reqFilter === '전체' ? reqs : reqs.filter(r => r.status === S.reqFilter);
+  const catCounts = CATEGORIES.map(k => [k, reqs.filter(r => r.category === k).length]).filter(x => x[1]);
+  return `
+  <div class="req-summary">
+    <div class="sbar" role="img" aria-label="수용 여부 분포">${STATUSES.map(s => cnt(s) ? `<span class="${STATUS_CLASS[s]}" style="flex:${cnt(s)}" title="${s} ${cnt(s)}건"></span>` : '').join('')}</div>
+    <div class="filters">${['전체', ...STATUSES].map(s => `<button class="fchip ${S.reqFilter === s ? 'on' : ''} ${STATUS_CLASS[s] || ''}" data-act="filter" data-s="${s}">${s}<b>${s === '전체' ? reqs.length : cnt(s)}</b></button>`).join('')}</div>
+    <div class="muted small">${catCounts.map(([k, n]) => `${k} ${n}`).join(' · ')} &nbsp;|&nbsp; 확정 <b>${confirmed}</b>/${reqs.length}</div>
+  </div>
+  <div class="tbl-wrap"><table class="req-tbl">
+    <thead><tr><th>ID</th><th>요구사항명</th><th>유형</th><th>우선</th><th>수용 여부</th><th>출처</th><th>확정</th></tr></thead>
+    <tbody>${list.map(r => reqRow(r)).join('') || `<tr><td colspan="7" class="empty">해당하는 요구사항이 없습니다.</td></tr>`}</tbody>
+  </table></div>
+  <div class="row"><button class="btn ghost" data-act="addreq">+ 요구사항 추가</button><span class="muted small">행을 누르면 상세 내용과 근거 문장을 봅니다. 사람이 확인한 항목은 확정에 체크하세요.</span></div>`;
+}
+function reqRow(r) {
+  const isOpen = S.openReq === r.id;
+  const refs = [...new Set(r.sources.map(s => s.ref))];
+  const row = `<tr class="rrow ${isOpen ? 'open' : ''} ${r.confirmed ? 'confirmed' : ''}" data-act="openreq" data-id="${r.id}" tabindex="0">
+    <td class="mono">${r.id}${r._changed ? `<span class="chg ${r._changed}">${r._changed === 'added' ? '추가' : '변경'}</span>` : ''}</td>
+    <td class="ttl">${R(r.title)}${r.confidence === '낮음' ? '<span class="conf c-낮음" title="AI 확신도 낮음: 원 자료로 다시 확인하세요">확인</span>' : ''}</td><td>${esc(r.category)}</td><td class="pri p-${r.priority}">${esc(r.priority)}</td><td>${pill(r.status)}</td>
+    <td class="refs">${refs.map(refChip).join('')}</td>
+    <td><input type="checkbox" data-act="confirm" data-id="${r.id}" ${r.confirmed ? 'checked' : ''} aria-label="${r.id} 확정"></td></tr>`;
+  if (!isOpen) return row;
+  return row + `<tr class="detail"><td colspan="7">${S.editReq === r.id ? reqEditor() : reqDetail(r)}</td></tr>`;
+}
+function reqDetail(r) {
+  return `<div class="rdetail">
+    <div class="rd-main">
+      <p>${R(r.description)}</p>
+      <div class="asis-tobe"><div><span class="lbl">AS-IS 현행</span><p>${R(r.asis) || '<span class="muted">자료에 없음</span>'}</p></div><div><span class="lbl">TO-BE 개선</span><p>${R(r.tobe) || '<span class="muted">자료에 없음</span>'}</p></div></div>
+      <div><span class="lbl">수용 여부</span> ${pill(r.status)} <span>${R(r.statusReason)}</span></div>
+      <div class="small"><span class="lbl">품질속성</span>${esc(r.quality)} <span class="lbl" style="margin-left:12px">긴급도</span>${esc(r.priority)} <span class="lbl" style="margin-left:12px">난이도</span>${esc(r.difficulty)}</div>
+      ${whyBox(r)}
+      <div><span class="lbl">검수 기준</span><ul class="crit">${r.acceptanceCriteria.map(a => `<li>${R(a)}</li>`).join('') || '<li class="muted">없음</li>'}</ul></div>
+    </div>
+    <div class="rd-src"><span class="lbl">근거 (출처)</span>${r.sources.map(s => `<blockquote>${refChip(s.ref)}<span class="who">${R(s.who)}</span><q>${R(s.quote)}</q></blockquote>`).join('') || '<p class="muted">출처 없음: 확인이 필요합니다.</p>'}
+      <div class="row"><button class="btn small" data-act="editreq" data-id="${r.id}">수정</button></div>
+    </div>
+  </div>`;
+}
+function whyBox(r) {
+  const w = r.rationale || {};
+  if (!w.extract && !w.classify && !w.decide) return '';
+  return `<div class="why"><div class="why-head"><span class="lbl">AI 판단 근거</span>${r.confidence ? `<span class="conf c-${r.confidence}">확신도 ${esc(r.confidence)}</span>` : ''}</div>
+    <dl>${[['왜 뽑았나', w.extract], ['유형·우선순위', w.classify], ['수용 여부 판단', w.decide]].filter(x => x[1]).map(([k, v]) => `<dt>${k}</dt><dd>${R(v)}</dd>`).join('')}</dl></div>`;
+}
+function reqEditor() {
+  const b = S.editBuf;
+  const sel = (f, list) => `<select id="e-${f}" data-bind="req:${f}">${list.map(o => `<option ${b[f] === o ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
+  const ta = (f, label, v) => `<label class="fld"><span>${label}</span><textarea id="e-${f}" data-bind="req:${f}" data-autosize rows="2">${esc(v)}</textarea></label>`;
+  return `<div class="editor">
+    <div class="ed-row"><label class="fld grow"><span>요구사항명</span><input id="e-title" data-bind="req:title" value="${esc(b.title)}"></label><label class="fld"><span>유형</span>${sel('category', CATEGORIES)}</label><label class="fld"><span>긴급도</span>${sel('priority', PRIORITIES)}</label><label class="fld"><span>품질속성</span>${sel('quality', QUALITIES)}</label><label class="fld"><span>난이도</span>${sel('difficulty', PRIORITIES)}</label><label class="fld"><span>수용 여부</span>${sel('status', STATUSES)}</label></div>
+    ${ta('description', '상세 내용', b.description)}
+    <div class="ed-row two">${ta('asis', 'AS-IS (현행)', b.asis)}${ta('tobe', 'TO-BE (개선)', b.tobe)}</div>
+    ${ta('statusReason', '수용 여부 사유·조건', b.statusReason)}
+    ${ta('acceptanceCriteria', '검수 기준 (한 줄에 하나)', b.acceptanceCriteria.join('\n'))}
+    <p class="muted small">[이름-1] 같은 토큰은 그대로 두면 문서에서 원래 값으로 채워집니다.</p>
+    <div class="row"><button class="btn primary" data-act="savereq">저장</button><button class="btn ghost" data-act="cancelreq">취소</button><span class="grow"></span><button class="btn danger ghost" data-act="delreq">${S.delArm ? '한 번 더 누르면 삭제됩니다' : '삭제'}</button></div>
+  </div>`;
+}
+
+function tabMeeting() {
+  const r = S.result, m = r.meeting;
+  return `<div class="meet">
+    <section class="panel"><h3>AS-IS → TO-BE</h3><div class="tbl-wrap"><table class="at-tbl"><thead><tr><th>ID</th><th>요구사항</th><th>AS-IS (현행)</th><th></th><th>TO-BE (개선)</th><th>수용 여부</th></tr></thead><tbody>
+      ${r.requirements.map(q => `<tr><td class="mono">${q.id}</td><td>${R(q.title)}</td><td>${R(q.asis) || '<span class="muted">—</span>'}</td><td class="arrow">→</td><td>${R(q.tobe) || '<span class="muted">—</span>'}</td><td>${pill(q.status)}<div class="small muted">${R(q.statusReason)}</div></td></tr>`).join('')}
+    </tbody></table></div></section>
+    <div class="meet-grid">
+      <section class="panel"><h3>결정사항 <span class="count">${m.decisions.length}</span></h3><ul class="dlist">${m.decisions.map(d => `<li>${R(d.text)} ${refChip(d.ref)}</li>`).join('') || '<li class="muted">없음</li>'}</ul></section>
+      <section class="panel"><h3>미결사항 <span class="count">${m.openIssues.length}</span></h3><ul class="dlist open">${m.openIssues.map(d => `<li>${R(d.text)}<div class="small muted">담당: ${R(d.owner) || '미지정'} ${refChip(d.ref)}</div></li>`).join('') || '<li class="muted">없음</li>'}</ul></section>
+      <section class="panel"><h3>후속 조치 <span class="count">${m.actionItems.length}</span></h3><ul class="dlist act">${m.actionItems.map(a => `<li>${R(a.task)}<div class="small muted">${R(a.owner) || '담당 미지정'} · ${R(a.due) || '기한 미정'}</div></li>`).join('') || '<li class="muted">없음</li>'}</ul></section>
+    </div>
+  </div>`;
+}
+
+function tabChecks() {
+  const c = S.result.checks;
+  const done = (k, x) => S.resolved.has(checkKey(k, x));
+  const card = (k, x, inner) => `<article class="ck ${k} ${done(k, x) ? 'resolved' : ''}">${inner}<label class="check small"><input type="checkbox" data-act="resolve" data-key="${esc(checkKey(k, x))}" ${done(k, x) ? 'checked' : ''}> 해결됨</label></article>`;
+  return `<div class="checks">
+    <section><h3><span class="dot missing"></span>빠진 항목 <span class="count">${c.missing.length}</span></h3><p class="muted small">요구사항서 필수 항목(예외 처리, 권한, 이력, 성능, 일정, 보관, 지원 환경)과 원 자료를 대조했습니다.</p>
+      ${c.missing.map(x => card('missing', x, `<header>${reqChip(x.reqId)}<b>${R(x.item)}</b>${refChip(x.ref)}</header><p>${R(x.detail)}</p>${x.suggestion ? `<p class="sugg"><span>제안</span>${R(x.suggestion)}</p>` : ''}`)).join('') || '<div class="empty">빠진 항목이 없습니다.</div>'}</section>
+    <section><h3><span class="dot conflicts"></span>서로 다른 의견 <span class="count">${c.conflicts.length}</span></h3><p class="muted small">이해관계자끼리 입장이 다른 주제입니다. 결정 전까지 해당 요구사항은 미결로 둡니다.</p>
+      ${c.conflicts.map(x => card('conflicts', x, `<header>${x.reqIds.map(reqChip).join('')}<b>${R(x.topic)}</b></header><ul class="pos">${x.positions.map(p => `<li><span class="who">${R(p.who)}</span><span>${R(p.stance)}</span>${refChip(p.ref)}</li>`).join('')}</ul>${x.suggestion ? `<p class="sugg"><span>절충안</span>${R(x.suggestion)}</p>` : ''}`)).join('') || '<div class="empty">상충 의견이 없습니다.</div>'}</section>
+    <section><h3><span class="dot ambiguous"></span>모호한 표현 <span class="count">${c.ambiguous.length}</span></h3><p class="muted small">검수할 수 없는 표현입니다. 수치나 조건으로 바꾸세요.</p>
+      ${c.ambiguous.map(x => card('ambiguous', x, `<header>${reqChip(x.reqId)}<b>"${R(x.phrase)}"</b>${refChip(x.ref)}</header>${x.suggestion ? `<p class="sugg"><span>구체화</span>${R(x.suggestion)}</p>` : ''}`)).join('') || '<div class="empty">모호한 표현이 없습니다.</div>'}</section>
+  </div>`;
+}
+
+function emailFor(g) {
+  const title = S.result.project.title;
+  const items = g.items.map((q, k) => `${k + 1}. ${q.q}${q.reqIds.length || q.why ? `\n   (관련: ${[q.reqIds.join(', '), q.why].filter(Boolean).join(' / ')})` : ''}`).join('\n\n');
+  return {
+    subject: `[확인 요청] ${title} 요구사항 관련 문의 ${g.items.length}건`,
+    body: `${g.to}님, 안녕하세요.\n\n'${title}' 요구사항 정의서를 정리하고 있습니다. 아래 사항을 확인해 주시면 정의서에 반영하겠습니다.\n\n${items}\n\n${S.meta.due ? S.meta.due + '까지 ' : ''}회신 부탁드립니다. 주신 답변은 출처와 함께 기록해 두겠습니다.\n\n감사합니다.\n${S.meta.author || '요구사항 담당자'} 드림`
+  };
+}
+function tabMail() {
+  const qs = S.result.questions;
+  return `<div class="mail">
+    <div class="panel mail-opts"><label class="fld"><span>보내는 사람</span><input id="m-author" data-bind="meta:author" data-rerender="1" value="${esc(S.meta.author)}" placeholder="예: 홍길동 과장"></label><label class="fld"><span>회신 기한</span><input id="m-due" data-bind="meta:due" data-rerender="1" value="${esc(S.meta.due)}" placeholder="예: 10/28(화)"></label><p class="muted small">미결·누락·충돌 항목을 물어볼 사람별로 묶었습니다. 복사하면 가린 값이 원래 값으로 채워진 상태로 복사됩니다. 회신을 받으면 <button class="link" data-act="tab" data-k="apply">회신 반영</button> 탭에 붙여 넣으세요.</p></div>
+    <div class="mail-grid">${qs.map((g, i) => { const e = emailFor(g); return `<article class="panel mailcard">
+      <header><div><span class="lbl">받는 사람</span><b>${R(g.to)}</b><span class="muted"> · ${R(g.role)}</span></div><span class="count">${g.items.length}건</span></header>
+      <div class="subj"><span class="lbl">제목</span>${R(e.subject)}</div>
+      <pre class="mailbody">${R(e.body)}</pre>
+      <div class="row"><button class="btn small" data-act="copymail" data-i="${i}">메일 내용 복사</button><span class="muted small" id="copied-${i}"></span></div>
+    </article>`; }).join('') || '<div class="empty">물어볼 사항이 없습니다.</div>'}</div>
+  </div>`;
+}
+
+function tabApply() {
+  const a = S.apply;
+  const demoReady = S.result.isDemo && sampleIntact() && !S.sources.some(s => s.kind === 'reply');
+  const preview = a.previewed && a.text.trim() ? `<div class="panel prev"><header><b>AI에 보낼 내용</b><span class="muted">새로 찾은 민감정보도 가렸습니다</span></header><pre class="prev-text">${maskPreviewHTML(S.M, a.text)}</pre></div>` : '';
+  const busy = S.run && S.run.busy;
+  return `<div class="apply">
+    <section class="panel">
+      <h3>회신·추가 자료 반영</h3>
+      <p class="muted small">확인 질문의 회신이나 새로 받은 자료를 넣으면, 바뀌는 요구사항만 고치고 무엇이 바뀌었는지 이력에 남깁니다.</p>
+      <div class="seg"><label><input type="radio" name="akind" data-act="akind" value="reply" ${a.kind === 'reply' ? 'checked' : ''}> 확인 회신</label><label><input type="radio" name="akind" data-act="akind" value="doc" ${a.kind === 'doc' ? 'checked' : ''}> 추가 자료</label></div>
+      <div class="ed-row"><label class="fld grow"><span>${a.kind === 'reply' ? '회신한 사람' : '자료 제목'}</span><input id="ap-from" data-bind="apply:from" value="${esc(a.from)}" placeholder="${a.kind === 'reply' ? '예: 이서윤 과장' : '예: 2차 회의록'}"></label><label class="fld"><span>일자</span><input id="ap-date" data-bind="apply:date" value="${esc(a.date)}"></label></div>
+      <textarea id="ap-text" data-bind="apply:text" data-autosize rows="7" placeholder="회신 메일이나 추가 자료 내용을 붙여 넣으세요">${esc(a.text)}</textarea>
+      <div class="row wrap">
+        <label class="drop inline" data-kind="apply"><input type="file" data-file="apply" accept=".txt,.md,.csv,.pdf,.docx,.xlsx,.xls,.pptx,.hwpx,.eml"><span>파일에서 읽기</span></label>
+        ${demoReady ? '<button class="btn ghost" data-act="demoreply">예시 회신 넣기</button>' : ''}
+        <span class="grow"></span>
+        <button class="btn" data-act="applyprev" ${a.text.trim() ? '' : 'disabled'}>민감정보 가리고 미리보기</button>
+        <button class="btn primary" data-act="applyrun" ${a.text.trim() && !busy ? '' : 'disabled'}>요구사항에 반영</button>
+      </div>
+      <div id="run-box">${S.run && S.run.where === 'apply' ? runBox() : ''}</div>
+      ${preview}
+    </section>
+    <section class="panel">
+      <h3>변경 이력 <span class="count">${S.history.length}</span></h3>
+      <ol class="timeline">${[...S.history].reverse().map(h => `<li><div class="t-head"><b>${esc(h.label)}</b><span class="muted small">${esc(h.at)}${h.ref ? ' · ' : ''}</span>${h.ref ? refChip(h.ref) : ''}</div><ul>${h.changes.map(c => `<li><span class="ctype t-${esc(c.type)}">${esc(c.type)}</span>${c.reqId ? reqChip(c.reqId) : ''}<span>${R(c.summary)}</span></li>`).join('')}</ul></li>`).join('') || '<li class="empty">아직 이력이 없습니다.</li>'}</ol>
+    </section>
+  </div>`;
+}
+
+// 5단계: 문서
+function docCtx(restore) {
+  maskAll();
+  return {
+    result: S.result, meta: S.meta, template: S.template, sources: S.sources.filter(s => s.text.trim()), history: S.history, resolved: S.resolved,
+    tx: t => (restore ? unmask(S.M, t) : String(t ?? '')),
+    srcTitle: id => { const s = srcById(id); return s ? KIND_LABEL[s.kind] : ''; }
+  };
+}
+function viewExport() {
+  const t = S.template;
+  const form = FORM_PRESETS[S.tplKey];
+  const metaF = [['docName', '문서 이름', t.docTitle], ['title', '요청 건명', S.result.project.title], ['dept', '요청 부서', '예: ○○사업부'], ['author', '작성자', '예: 홍길동 과장'], ['date', '작성일', today()], ['system', '대상 시스템', '예: 가맹점 매출조회 포털'], ['version', '문서 버전', 'v1.0']]
+    .filter(([k]) => !form || form.meta.includes(k));
+  const ctx = docCtx(S.exportRestore);
+  const moveBtns = (kind, i, len) => `<button class="icon-btn" data-act="mv" data-kind="${kind}" data-i="${i}" data-d="-1" ${i ? '' : 'disabled'} aria-label="위로">↑</button><button class="icon-btn" data-act="mv" data-kind="${kind}" data-i="${i}" data-d="1" ${i < len - 1 ? '' : 'disabled'} aria-label="아래로">↓</button>`;
+  const presetBtn = ([k, p]) => `<button class="${S.tplKey === k ? 'on' : ''}" data-act="preset" data-k="${k}">${p.name}</button>`;
+  const editor = form
+    ? `<h4>양식 구성</h4><p class="muted small">${form.note}</p><ul class="form-spec">${form.spec.map(([k, v]) => `<li><b>${esc(k)}</b><span>${esc(v)}</span></li>`).join('')}</ul>`
+    : `<h4>목차</h4>
+      <ul class="tpl-list">${t.sections.map((s, i) => `<li class="${s.on ? '' : 'off'}"><input type="checkbox" data-act="tplon" data-kind="sections" data-i="${i}" ${s.on ? 'checked' : ''} aria-label="${esc(s.label)} 포함"><input id="sec-${i}" data-bind="tpl:sections:${i}" data-live="1" value="${esc(s.label)}" aria-label="목차 이름">${moveBtns('sections', i, t.sections.length)}</li>`).join('')}</ul>
+      <h4>요구사항 표의 열</h4>
+      <ul class="tpl-list">${t.columns.map((c, i) => `<li class="${c.on ? '' : 'off'}"><input type="checkbox" data-act="tplon" data-kind="columns" data-i="${i}" ${c.on ? 'checked' : ''} aria-label="${esc(c.label)} 포함"><input id="col-${i}" data-bind="tpl:columns:${i}" data-live="1" value="${esc(c.label)}" aria-label="열 이름"><select data-act="colkey" data-i="${i}" aria-label="열에 넣을 내용">${Object.entries(COLUMN_DEFS).map(([k, d]) => `<option value="${k}" ${c.key === k ? 'selected' : ''}>${d.label}</option>`).join('')}<option value="blank" ${c.key === 'blank' ? 'selected' : ''}>(빈 칸)</option></select>${moveBtns('columns', i, t.columns.length)}</li>`).join('')}</ul>
+      <div class="row"><button class="btn ghost small" data-act="addcol">+ 열 추가</button><button class="btn ghost small" data-act="resettpl">이 양식 처음대로</button></div>`;
+  const buttons = form
+    ? `<button class="btn primary" data-act="dl" data-f="${form.fmt}">${form.button}</button><button class="btn" data-act="dl" data-f="trace">AI 판단 기록 (.md)</button>`
+    : `<button class="btn primary" data-act="dl" data-f="docx">Word로 내려받기</button><button class="btn" data-act="dl" data-f="xlsx">Excel로 내려받기</button><button class="btn" data-act="dl" data-f="md">Markdown으로 내려받기</button><button class="btn" data-act="dl" data-f="trace">AI 판단 기록 (.md)</button>`;
+  const help = form ? form.help : 'Excel 파일에는 요구사항, 추적표(요구사항 ↔ 출처), 점검 결과, 확인 질문, 변경 이력 시트가 들어갑니다.';
+  return `<div class="export">
+    <aside class="panel tpl">
+      <h3>양식</h3>
+      <div class="seg wrap">${Object.entries(TEMPLATE_PRESETS).map(presetBtn).join('')}${Object.entries(FORM_PRESETS).map(presetBtn).join('')}</div>
+      <p class="muted small">${form ? '사내 표준 양식입니다. 내용은 분석 결과로 채우고, 모양은 표준에 맞춰 고정됩니다.' : '부서 양식에 맞게 항목 이름을 바꾸고, 켜고 끄고, 순서를 옮기세요. 바꾼 양식은 이 브라우저에 저장됩니다.'}</p>
+      <h4>문서 정보</h4>
+      ${metaF.map(([k, l, ph]) => `<label class="fld"><span>${l}</span><input id="meta-${k}" data-bind="meta:${k}" data-live="1" value="${esc(S.meta[k])}" placeholder="${esc(ph)}"></label>`).join('')}
+      ${editor}
+    </aside>
+    <section class="doc-side">
+      <div class="panel export-bar">
+        <div class="row wrap">${buttons}</div>
+        <label class="check small"><input type="checkbox" data-act="exprestore" ${S.exportRestore ? 'checked' : ''}> 가린 값을 원래 값으로 채워서 내보내기 <span class="muted">(끄면 [이름-1]처럼 토큰 상태로 내보냅니다)</span></label>
+        <p class="muted small">${help} AI 판단 기록에는 요구사항별로 왜 뽑고 어떻게 판단했는지, AI를 언제 어떤 지시로 불렀는지, 사람이 무엇을 고쳤는지가 남습니다.</p>
+      </div>
+      <div class="paper pv-${form ? S.tplKey : 'doc'}" id="paper">${paperHTML(ctx)}</div>
+    </section>
+  </div>`;
+}
+function paperHTML(ctx) {
+  if (S.tplKey === 'pumui') return pumuiToHTML(buildPumuiBlocks(ctx));
+  if (S.tplKey === 'spec') return specToHTML(ctx);
+  return blocksToHTML(buildDocBlocks(ctx));
+}
+function refreshPaper() { const p = $('#paper'); if (p) p.innerHTML = paperHTML(docCtx(S.exportRestore)); }
+
+// ───────── 분석 실행 ─────────
+const ERR_COPY = {
+  not_granted: 'AI 사용을 허용하지 않아 분석할 수 없습니다. 예시 결과로는 계속 체험할 수 있습니다.',
+  sampling_disabled: '이 계정에서는 AI를 쓸 수 없습니다.',
+  rate_limited: '요청이 많거나 사용 한도에 도달했습니다. 잠시 후 다시 시도하세요.',
+  prompt_too_large: '자료가 너무 깁니다. 덜 중요한 자료를 빼거나 나눠서 분석하세요.',
+  invalid_json: 'AI 응답을 표로 정리하지 못했습니다. 한 번 더 시도해 주세요.',
+  refused: 'AI가 이 자료를 처리하지 않았습니다. 자료 내용을 확인해 주세요.',
+  empty_completion: 'AI가 빈 답을 보냈습니다. 자료를 조금 줄여서 다시 시도해 주세요.',
+  session_expired: '로그인이 만료되었습니다. claude.ai에 다시 로그인한 뒤 시도하세요.',
+  cancelled: '분석을 멈췄습니다.',
+  local_down: 'serve.py에 연결하지 못했습니다. serve.py 실행 창이 열려 있는지 확인하세요.',
+  local_timeout: '사내 LLM 응답이 너무 늦습니다. settings.json의 timeout_sec를 늘리거나 자료를 줄여 보세요.'
+};
+const errText = e => ERR_COPY[e?.code] || (e?.code === 'local_error' ? `사내 LLM 오류: ${e.message || '알 수 없는 오류'}` : e?.message && !e.code ? e.message : '일시적인 오류로 처리하지 못했습니다. 다시 시도해 주세요.');
+const MAX_BYTES = 240000;
+let tick = null;
+
+function startRun(where, stages) {
+  S.run = { busy: true, where, stages, t0: Date.now(), chars: 0, ctl: new AbortController(), msg: '' };
+  clearInterval(tick);
+  tick = setInterval(() => { const m = $('#run-meta'); if (m && S.run?.busy) m.textContent = `${S.run.chars ? fmtNum(S.run.chars) + '자 작성 · ' : ''}${Math.round((Date.now() - S.run.t0) / 1000)}초`; }, 1000);
+}
+function endRun(patch) { clearInterval(tick); Object.assign(S.run, { busy: false }, patch); }
+function setStage(i, state, msg) { S.run.stages[i] = state; if (msg) S.run.msg = msg; if (S.step === 3) render(); else updateRunBox(); }
+
+// AI 호출 한 번. 어느 엔진을 쓰든 기록(S.trace)을 남깁니다.
+async function askJSON(prompt, step) {
+  const inBytes = new TextEncoder().encode(prompt).length;
+  const rec = { at: nowStamp(), step, engine: engineLabel(), inBytes, outChars: 0, ms: null, ok: false };
+  S.trace.push(rec);
+  const t0 = Date.now();
+  try {
+    const limit = S.ai.provider === 'local' ? (CFG.llm.maxPromptBytes || MAX_BYTES) : MAX_BYTES;
+    if (inBytes > limit) throw { code: 'prompt_too_large' };
+    S.run.chars = 0;
+    const out = S.ai.provider === 'local' ? await askLocal(prompt) : await S.ai.sample.json(prompt, {
+      signal: S.run.ctl.signal,
+      modelTier: S.precise ? 'complex' : 'default',
+      onText: ({ text }) => { S.run.chars = text.length; rec.outChars = text.length; }
+    });
+    if (!rec.outChars) rec.outChars = S.run.chars || JSON.stringify(out).length;
+    rec.ok = true;
+    return out;
+  } catch (e) { rec.error = errText(e); throw e; }
+  finally { rec.ms = Date.now() - t0; }
+}
+
+// 사내 LLM: serve.py의 /api/llm이 settings.json의 주소·모델·키로 대신 호출합니다(키는 브라우저에 오지 않음).
+async function askLocal(prompt) {
+  let res;
+  try {
+    res = await fetch(CFG.llm.endpoint, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: S.run.ctl.signal,
+      body: JSON.stringify({ prompt, tier: S.precise ? 'precise' : 'default', json: true })
+    });
+  } catch (e) { throw e?.name === 'AbortError' ? { code: 'cancelled' } : { code: 'local_down' }; }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw { code: { 413: 'prompt_too_large', 429: 'rate_limited', 504: 'local_timeout' }[res.status] || 'local_error', message: body.error };
+  if (body.model) S.ai.model = body.model;
+  const text = String(body.text || '');
+  S.run.chars = text.length;
+  if (!text.trim()) throw { code: 'empty_completion' };
+  return parseJSONLoose(text);
+}
+
+function finishAnalysis(res, label, isDemo) {
+  res.isDemo = isDemo;
+  S.result = res; S.resolved = new Set(); S.openReq = null; S.editReq = null; S.reqFilter = '전체'; S.tab = 'req';
+  S.meta.title = '';
+  const c = res.checks;
+  S.history = [{ at: nowStamp(), label, ref: '', changes: [{ type: '추가', reqId: '', summary: `요구사항 ${res.requirements.length}건 정리, 누락 ${c.missing.length}건 · 상충 ${c.conflicts.length}건 · 모호 ${c.ambiguous.length}건 발견, 확인 질문 ${res.questions.reduce((a, g) => a + g.items.length, 0)}건 작성` }] }];
+}
+
+async function runAnalyze() {
+  if (S.ai.state !== 'ready') return;
+  const list = maskAll(S.sources.filter(s => s.text.trim()));
+  const prevTrace = S.trace;
+  S.trace = [];
+  startRun('analyze', ['run', 'run', 'wait', 'wait']);
+  S.run.msg = '자료를 읽고 요구사항을 뽑는 중입니다 (보통 30초~2분)';
+  render();
+  try {
+    const a = await askJSON(promptAnalyze(list), '요구사항 추출·분류·회의 분석');
+    const base = normalizeResult(a);
+    if (!base.requirements.length) throw { code: 'empty_completion' };
+    setStage(0, 'done'); setStage(1, 'done'); S.run.stages[2] = 'run'; S.run.stages[3] = 'run';
+    setStage(2, 'run', `요구사항 ${base.requirements.length}건을 원 자료와 대조해 빈틈을 찾는 중입니다`);
+    const b = await askJSON(promptCheck(list, base), '누락·충돌 점검·확인 질문');
+    const full = normalizeResult(Object.assign({}, a, { checks: b, questions: b.questions }));
+    finishAnalysis(full, '최초 분석', false);
+    endRun({ stages: ['done', 'done', 'done', 'done'], done: `분석을 마쳤습니다. 요구사항 ${full.requirements.length}건을 찾았습니다.` });
+    S.step = 4; render();
+  } catch (e) {
+    if (S.result) S.trace = prevTrace.concat(S.trace);
+    if (e?.code === 'not_granted' || e?.code === 'sampling_disabled') { S.ai.state = 'denied'; renderBadge(); }
+    endRun({ stages: S.run.stages.map(s => (s === 'run' ? 'err' : s)), error: errText(e) });
+    render();
+  }
+}
+
+function runDemo(fast) {
+  maskAll();
+  const done = () => {
+    S.trace = [{ at: nowStamp(), step: '요구사항 추출·분류·점검 (예시)', engine: '예시 모드: 미리 분석한 결과', inBytes: 0, outChars: 0, ms: null, ok: true }];
+    finishAnalysis(normalizeResult(bindDemo(DEMO_V1)), '최초 분석 (예시)', true);
+    S.run = { busy: false, stages: ['done', 'done', 'done', 'done'], done: '미리 분석해 둔 예시 결과를 불러왔습니다.' };
+    S.step = 4; render(); window.scrollTo({ top: 0 });
+  };
+  if (fast) return done();
+  startRun('analyze', ['run', 'wait', 'wait', 'wait']);
+  S.run.msg = '예시 결과를 불러오는 중입니다';
+  render();
+  [0, 1, 2, 3].forEach(i => setTimeout(() => {
+    if (!S.run?.busy) return;
+    S.run.stages[i] = 'done'; if (i < 3) S.run.stages[i + 1] = 'run';
+    if (i === 3) { clearInterval(tick); done(); } else render();
+  }, 450 * (i + 1)));
+}
+
+function markChanges(oldRes, newRes) {
+  const oldMap = new Map(oldRes.requirements.map(r => [r.id, r]));
+  const computed = [];
+  for (const r of newRes.requirements) {
+    const o = oldMap.get(r.id);
+    if (!o) { r._changed = 'added'; computed.push({ type: '추가', reqId: r.id, summary: `${r.title} 추가` }); continue; }
+    const d = diffReq(o, r);
+    if (d.length) { r._changed = 'modified'; r.confirmed = false; computed.push({ type: '변경', reqId: r.id, summary: `${d.map(k => REQ_FIELDS[k]).join(', ')} 변경${o.status !== r.status ? ` (수용 여부 ${o.status} → ${r.status})` : ''}` }); }
+    else { r._changed = null; r.confirmed = o.confirmed; }
+  }
+  return computed;
+}
+
+async function runApply() {
+  const a = S.apply;
+  if (!a.text.trim()) return;
+  const isDemoReply = S.result.isDemo && a.text.trim() === SAMPLE_REPLY.text.trim();
+  if (!isDemoReply && S.ai.state !== 'ready') {
+    S.run = { busy: false, where: 'apply', error: S.result.isDemo ? '지금은 AI가 연결되지 않아 예시 회신만 반영할 수 있습니다. "예시 회신 넣기"를 눌러 보세요.' : 'AI가 연결되지 않아 반영할 수 없습니다.' };
+    return render();
+  }
+  const src = addSource(a.kind === 'reply' ? 'reply' : 'doc', { title: a.kind === 'reply' ? `확인 회신: ${a.from || '회신'}` : (a.from || '추가 자료'), author: a.kind === 'reply' ? a.from : '', date: a.date, text: a.text.trim() });
+  maskAll([src]);
+  const old = S.result;
+  const label = a.kind === 'reply' ? '회신 반영' : '추가 자료 반영';
+  if (isDemoReply) {
+    startRun('apply', ['run']); S.run.msg = '예시 회신을 반영하는 중입니다'; render();
+    setTimeout(() => {
+      const v2 = bindDemo(JSON.parse(JSON.stringify(buildDemoV2()).replaceAll('"S4"', `"${src.id}"`)));
+      const next = normalizeResult(v2); next.isDemo = true;
+      S.trace.push({ at: nowStamp(), step: `${src.id} 반영 (예시)`, engine: '예시 모드: 미리 분석한 결과', inBytes: 0, outChars: 0, ms: null, ok: true });
+      markChanges(old, next);
+      commitApply(next, v2.changes, label, src.id);
+      endRun({ done: `${src.id} 회신을 반영했습니다. 바뀐 요구사항에 표시가 붙었습니다.` });
+      render();
+    }, 900);
+    return;
+  }
+  startRun('apply', ['run']); S.run.msg = '새 자료를 기존 요구사항과 비교하는 중입니다'; render();
+  try {
+    const u = await askJSON(promptUpdate(old, [src]), `${src.id} 반영(변경 판단)`);
+    const next = normalizeResult(Object.assign({ checks: {} }, u));
+    if (!next.requirements.length) throw { code: 'empty_completion' };
+    S.run.msg = '바뀐 요구사항을 다시 점검하는 중입니다'; updateRunBox();
+    const list = maskAll(S.sources.filter(s => s.text.trim()));
+    const b = await askJSON(promptCheck(list, next), `${src.id} 반영 후 재점검`);
+    const full = normalizeResult(Object.assign({}, u, { checks: b, questions: b.questions }));
+    const computed = markChanges(old, full);
+    const changes = arr(u.changes).map(c => ({ type: str(c.type) || '변경', reqId: str(c.reqId), summary: str(c.summary) })).filter(c => c.summary);
+    commitApply(full, changes.length ? changes : computed, label, src.id);
+    endRun({ done: `${src.id}를 반영했습니다. 바뀐 요구사항 ${full.requirements.filter(r => r._changed).length}건에 표시가 붙었습니다.` });
+  } catch (e) {
+    S.sources = S.sources.filter(s => s !== src); S.nextId--;
+    if (e?.code === 'not_granted') { S.ai.state = 'denied'; renderBadge(); }
+    endRun({ error: errText(e) });
+  }
+  render();
+}
+function commitApply(next, changes, label, ref) {
+  next.isDemo = S.result.isDemo;
+  S.result = next;
+  S.history.push({ at: nowStamp(), label, ref, changes: changes.map(c => ({ type: c.type, reqId: c.reqId || '', summary: c.summary })) });
+  S.apply = { kind: 'reply', from: '', date: today(), text: '', previewed: false };
+}
+
+// ───────── 파일 저장 ─────────
+async function saveFile(filename, data) {
+  const dl = S.ai.downloads;
+  if (dl) {
+    try { await dl.save({ filename, data }); toast(`${filename} 저장을 요청했습니다.`); return; }
+    catch (e) { if (e?.code === 'declined') return; if (!['unavailable', 'not_granted', 'capability_disabled', 'capability_removed'].includes(e?.code)) { toast('파일을 저장하지 못했습니다. 다시 시도해 주세요.'); return; } }
+  }
+  const blob = data instanceof Blob ? data : new Blob([data], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  toast(`${filename}을 내려받았습니다.`);
+}
+async function doExport(fmt) {
+  const ctx = docCtx(S.exportRestore);
+  const base = (unmask(S.M, S.meta.title || S.result.project.title) || '요구사항').replace(/[\\/:*?"<>|]/g, '').slice(0, 40);
+  const name = `${base}_${S.template.docTitle.replace(/\s/g, '')}_${today().replace(/-/g, '')}`;
+  try {
+    toast('파일을 만드는 중입니다…');
+    if (fmt === 'md') return saveFile(name + '.md', blocksToMarkdown(buildDocBlocks(ctx)));
+    if (fmt === 'docx') return saveFile(name + '.docx', await blocksToDocx(buildDocBlocks(ctx)));
+    if (fmt === 'xlsx') return saveFile(name + '.xlsx', await buildXlsx(ctx));
+    if (fmt === 'hwpx') return saveFile(`${base}_품의문_${today().replace(/-/g, '')}.hwpx`, await buildPumuiHwpx(ctx));
+    if (fmt === 'spec') return saveFile(`${base}_요구사항명세서_${today().replace(/-/g, '')}.xlsx`, await buildSpecXlsx(ctx));
+    if (fmt === 'trace') return saveFile(`${base}_AI판단기록_${today().replace(/-/g, '')}.md`, buildTraceMarkdown(traceCtx(ctx)));
+  } catch (e) { toast(e.message || '파일을 만들지 못했습니다.'); }
+}
+
+function traceCtx(ctx) {
+  const used = [...S.M.items.values()].filter(it => S.sources.some(s => `${s.title}\n${s.author}\n${s.text}`.includes(it.value)));
+  const maskStats = MASK_TYPES.map(type => ({ type, on: used.filter(i => i.type === type && i.on).length, off: used.filter(i => i.type === type && !i.on).length })).filter(m => m.on || m.off);
+  const cut = t => t.split(/\n\n(?:자료|요구사항 목록|기존 데이터)\n/)[0];
+  const demo = S.result.isDemo ? ' (예시 모드에서는 호출하지 않았고, AI 모드에서 쓰는 지시문입니다)' : '';
+  const prompts = [
+    { name: `1. 요구사항 추출·분류·회의 분석${demo}`, text: cut(promptAnalyze([])) },
+    { name: `2. 누락·충돌 점검·확인 질문${demo}`, text: cut(promptCheck([], { requirements: [] })) },
+    { name: `3. 회신·추가 자료 반영${demo}`, text: cut(promptUpdate({ project: {}, requirements: [], meeting: {} }, [])) }
+  ];
+  return Object.assign({}, ctx, { calls: S.trace, maskStats, prompts, engine: S.ai.provider ? engineLabel() : 'AI', restored: S.exportRestore });
+}
+
+// ───────── 알림·모달 ─────────
+let toastT;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 3200);
+}
+function openSource(id, quote) {
+  const s = srcById(id); if (!s) return;
+  maskAll([s]);
+  let body = R(s.masked);
+  $('#modal-body').innerHTML = `<header class="m-head"><span class="sid">${s.id}</span><div><b>${R(s.mTitle)}</b><div class="muted small">${esc(KIND_LABEL[s.kind])} · ${R(s.mAuthor)} · ${esc(s.date)}</div></div></header><pre class="prev-text">${body}</pre><p class="muted small">${S.showOriginal ? '가린 값을 복원해서 보여 주고 있습니다. AI에는 토큰 상태로 전송되었습니다.' : 'AI에 전송된 상태(토큰)로 보여 주고 있습니다.'}</p>`;
+  $('#modal').hidden = false;
+  $('#modal-close').focus();
+}
+
+// ───────── 이벤트 ─────────
+const ACCEPT = '.txt,.md,.csv,.tsv,.pdf,.docx,.xlsx,.xls,.xlsm,.pptx,.hwpx,.hwp,.eml,.json,.log';
+const READABLE = new Set(ACCEPT.split(',').map(x => x.slice(1)));
+const MAX_FILE_MB = 30;
+
+// 끌어다 놓은 항목을 하위 폴더까지 펼쳐 {file, path} 목록으로 만듭니다.
+async function filesFromDrop(dt) {
+  const entries = [...(dt.items || [])].filter(i => i.kind === 'file').map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  if (!entries.length) return [...dt.files].map(f => ({ file: f, path: f.name }));
+  const out = [];
+  const walk = async (entry, prefix) => {
+    if (entry.isFile) out.push({ file: await new Promise((res, rej) => entry.file(res, rej)), path: prefix + entry.name });
+    else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      for (let batch; (batch = await new Promise((res, rej) => reader.readEntries(res, rej))).length;) for (const e of batch) await walk(e, prefix + entry.name + '/');
+    }
+  };
+  for (const e of entries) await walk(e, '');
+  return out;
+}
+const fromInput = files => [...files].map(f => ({ file: f, path: f.webkitRelativePath || f.name }));
+
+// 파일·폴더 이름으로 자료 구분을 추정합니다. 회의 → 고객 요청 → 나머지는 참고 문서 순서로 봅니다.
+function guessKind(path) {
+  if (/회의|미팅|녹취|협의|회신|minutes|meeting/i.test(path)) return 'meeting';
+  if (/요청|요구|니즈|문의|민원|건의|VOC|메일|mail|request|\.eml$/i.test(path)) return 'need';
+  return 'doc';
+}
+
+async function addFiles(kind, items) {
+  const isFolder = items.some(x => x.path.includes('/'));
+  const log = { from: isFolder ? '폴더에서 파일' : '파일', added: [], skipped: [], failed: [] };
+  const todo = items.filter(({ file, path }) => {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const hidden = path.split('/').some(seg => /^[.~]|^Thumbs\.db$|^desktop\.ini$/i.test(seg));
+    if (hidden || !file.name.includes('.') || !READABLE.has(ext)) { log.skipped.push(path); return false; }
+    if (file.size > MAX_FILE_MB * 1024 * 1024) { log.failed.push({ path, error: `${MAX_FILE_MB}MB 초과` }); return false; }
+    return true;
+  }).sort((a, b) => a.path.localeCompare(b.path, 'ko'));
+  for (const [i, { file, path }] of todo.entries()) {
+    toast(todo.length > 1 ? `(${i + 1}/${todo.length}) ${path} 읽는 중…` : `${file.name} 읽는 중…`);
+    try {
+      const text = await extractText(file);
+      if (!text.trim()) throw new Error('글자가 없습니다');
+      const title = path.replace(/\.[^.]+$/, '');
+      const k = kind === 'auto' ? guessKind(path) : kind;
+      if (k === 'apply') { S.apply.text = (S.apply.text ? S.apply.text + '\n\n' : '') + (todo.length > 1 ? `[${path}]\n` : '') + text; if (!S.apply.from) S.apply.from = title; }
+      else addSource(k, { title, text, fileName: path });
+      log.added.push({ path, kind: k });
+    } catch (e) { log.failed.push({ path, error: /[가-힣]/.test(e.message || '') ? e.message : '파일이 손상됐거나 형식이 맞지 않습니다' }); }
+  }
+  if (kind !== 'apply' && (items.length > 1 || kind === 'auto')) S.importLog = log;
+  // 빈 자리 카드(직접 입력용)는 파일이 들어오면 치웁니다.
+  if (kind !== 'apply' && log.added.length) S.sources = S.sources.filter(s => s.text.trim() || s.title.trim() || s.fileName);
+  const n = log.added.length, bad = log.failed[0];
+  toast(n ? `${fmtNum(n)}개 파일을 읽었습니다.${log.failed.length ? ` ${log.failed.length}개는 읽지 못했습니다.` : ''}` : bad ? `${bad.path}: ${bad.error}` : '읽을 수 있는 파일이 없습니다.');
+  render();
+}
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]');
+  if (!el || el.disabled) return;
+  const act = el.dataset.act, d = el.dataset;
+  const r = S.result;
+  switch (act) {
+    case 'go': go(+d.n); break;
+    case 'demo-fast': runDemo(true); break;
+    case 'clear': S.sources = []; S.nextId = 1; S.M = createMasker(); S.result = null; S.history = []; S.run = null; S.trace = []; S.importLog = null; addSource('need'); addSource('meeting'); addSource('doc'); render(); break;
+    case 'sample': loadSample(); S.step = 1; render(); break;
+    case 'addsrc': addSource(d.kind); render(); break;
+    case 'delsrc': S.sources = S.sources.filter(s => s.id !== d.id); render(); break;
+    case 'mtoggle': { const it = S.M.items.get(d.key); if (it) it.on = el.checked; render(); break; }
+    case 'addword': { const inp = $('#custom-word'); const w = inp.value.trim(); if (w && !S.M.custom.includes(w)) S.M.custom.push(w); render(); break; }
+    case 'delword': S.M.custom.splice(+d.i, 1); render(); break;
+    case 'analyze': runAnalyze(); break;
+    case 'demo': runDemo(false); break;
+    case 'stop': S.run?.ctl?.abort(); break;
+    case 'precise': S.precise = el.checked; break;
+    case 'tab': S.tab = d.k; S.editReq = null; render(); break;
+    case 'orig': S.showOriginal = el.checked; render(); break;
+    case 'filter': S.reqFilter = d.s; render(); break;
+    case 'openreq': if (e.target.closest('input,button,a')) break; S.openReq = S.openReq === d.id ? null : d.id; S.editReq = null; render(); break;
+    case 'confirm': { const q = r.requirements.find(x => x.id === d.id); if (q) q.confirmed = el.checked; render(); break; }
+    case 'goreq': S.tab = 'req'; S.reqFilter = '전체'; S.openReq = d.id; S.editReq = null; render(); setTimeout(() => $(`tr[data-id="${CSS.escape(d.id)}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 30); break;
+    case 'src': openSource(d.id); break;
+    case 'editreq': { const q = r.requirements.find(x => x.id === d.id); S.editReq = d.id; S.editBuf = clone(q); S.delArm = false; render(); break; }
+    case 'cancelreq': S.editReq = null; S.delArm = false; render(); break;
+    case 'savereq': {
+      const i = r.requirements.findIndex(x => x.id === S.editReq);
+      const b = S.editBuf;
+      if (typeof b.acceptanceCriteria === 'string') b.acceptanceCriteria = b.acceptanceCriteria.split('\n').map(s => s.trim()).filter(Boolean);
+      if (i < 0) break;
+      const old = r.requirements[i], diff = diffReq(old, b);
+      if (old._new) { delete b._new; S.history.push({ at: nowStamp(), label: '직접 수정', changes: [{ type: '추가', reqId: b.id, summary: `${b.title} 직접 추가` }] }); b._changed = 'added'; }
+      else if (diff.length) { S.history.push({ at: nowStamp(), label: '직접 수정', changes: [{ type: '변경', reqId: b.id, summary: `담당자가 ${diff.map(k => REQ_FIELDS[k]).join(', ')} 수정${old.status !== b.status ? ` (수용 여부 ${old.status} → ${b.status})` : ''}` }] }); b._changed = 'modified'; }
+      r.requirements[i] = b; S.editReq = null; render(); break;
+    }
+    case 'delreq': {
+      if (!S.delArm) { S.delArm = true; render(); break; }
+      const q = r.requirements.find(x => x.id === S.editReq);
+      r.requirements = r.requirements.filter(x => x.id !== S.editReq);
+      if (q && !q._new) S.history.push({ at: nowStamp(), label: '직접 수정', changes: [{ type: '삭제', reqId: q.id, summary: `${q.title} 삭제` }] });
+      S.editReq = null; S.openReq = null; S.delArm = false; render(); break;
+    }
+    case 'addreq': {
+      const max = r.requirements.reduce((m, x) => Math.max(m, +(x.id.match(/\d+/)?.[0] || 0)), 0);
+      const q = normalizeReq({ id: `REQ-${String(max + 1).padStart(3, '0')}`, title: '새 요구사항', status: '미결' }, 0);
+      q._new = true;
+      r.requirements.push(q); S.reqFilter = '전체'; S.openReq = q.id; S.editReq = q.id; S.editBuf = clone(q); render(); break;
+    }
+    case 'resolve': if (el.checked) S.resolved.add(d.key); else S.resolved.delete(d.key); render(); break;
+    case 'copymail': {
+      const g = r.questions[+d.i], m = emailFor(g);
+      const text = unmask(S.M, `제목: ${m.subject}\n\n${m.body}`);
+      const note = $(`#copied-${d.i}`);
+      navigator.clipboard?.writeText(text).then(() => { if (note) note.textContent = '복사했습니다. 메일 프로그램에 붙여 넣으세요.'; }, () => { if (note) note.textContent = '복사가 막혀 있습니다. 내용을 직접 선택해 복사하세요.'; });
+      break;
+    }
+    case 'akind': S.apply.kind = el.value; render(); break;
+    case 'demoreply': S.apply = { kind: 'reply', from: SAMPLE_REPLY.from, date: SAMPLE_REPLY.date, text: SAMPLE_REPLY.text, previewed: true }; render(); break;
+    case 'applyprev': S.apply.previewed = true; render(); break;
+    case 'applyrun': runApply(); break;
+    case 'preset': S.tplKey = d.k; if (TEMPLATE_PRESETS[d.k]) { S.template = clone(TEMPLATE_PRESETS[d.k]); lsSet(LS_TPL, S.template); } render(); break;
+    case 'resettpl': S.template = clone(TEMPLATE_PRESETS[S.tplKey] || TEMPLATE_PRESETS.std); lsSet(LS_TPL, S.template); render(); break;
+    case 'tplon': S.template[d.kind][+d.i].on = el.checked; lsSet(LS_TPL, S.template); render(); break;
+    case 'mv': { const L = S.template[d.kind], i = +d.i, j = i + +d.d; [L[i], L[j]] = [L[j], L[i]]; lsSet(LS_TPL, S.template); render(); break; }
+    case 'addcol': S.template.columns.push({ key: 'blank', label: '비고', on: true }); lsSet(LS_TPL, S.template); render(); break;
+    case 'exprestore': S.exportRestore = el.checked; refreshPaper(); break;
+    case 'dl': doExport(d.f); break;
+    case 'closeimport': S.importLog = null; render(); break;
+  }
+});
+
+document.addEventListener('change', e => {
+  const el = e.target;
+  if (el.matches('input[type=file][data-file]')) { addFiles(el.dataset.file, fromInput(el.files)); el.value = ''; }
+  if (el.matches('select[data-act=srckind]')) { const src = srcById(el.dataset.id); if (src) src.kind = el.value; render(); }
+  if (el.matches('select[data-act=colkey]')) { const c = S.template.columns[+el.dataset.i]; c.key = el.value; c.label = COLUMN_DEFS[el.value]?.label || '비고'; lsSet(LS_TPL, S.template); render(); }
+  if (el.matches('[data-rerender]')) render();
+});
+
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (el.matches('textarea[data-autosize]')) autosize(el);
+  const b = el.dataset.bind;
+  if (!b) return;
+  const [kind, a, f] = b.split(':');
+  if (kind === 'src') {
+    const s = srcById(a); if (s) s[f] = el.value;
+    const c = $('#src-count'); if (c) c.textContent = `자료 ${S.sources.length}건 · ${fmtNum(S.sources.reduce((x, s) => x + s.text.length, 0))}자`;
+  } else if (kind === 'meta') { S.meta[a] = el.value; lsSet(LS_META, { dept: S.meta.dept, author: S.meta.author, system: S.meta.system }); if (el.dataset.live) refreshPaper(); }
+  else if (kind === 'req') S.editBuf[a] = el.value;
+  else if (kind === 'apply') { S.apply[a] = el.value; const btns = $$('[data-act=applyprev],[data-act=applyrun]'); btns.forEach(x => { x.disabled = !S.apply.text.trim(); }); }
+  else if (kind === 'tpl') { S.template[a][+f].label = el.value; lsSet(LS_TPL, S.template); refreshPaper(); }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('#modal').hidden) { $('#modal').hidden = true; return; }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('tr.rrow')) { e.preventDefault(); e.target.click(); }
+  if (e.key === 'Enter' && e.target.id === 'custom-word') { e.preventDefault(); $('[data-act=addword]').click(); }
+});
+// 영역 밖에 놓아도 브라우저가 파일을 열어 작업이 날아가지 않게 막고, 1단계에서는 자동 분류로 받습니다.
+const hasFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
+document.addEventListener('dragover', e => { if (!hasFiles(e)) return; e.preventDefault(); const z = e.target.closest('.drop'); $$('.drop.over').forEach(x => { if (x !== z) x.classList.remove('over'); }); if (z) z.classList.add('over'); });
+document.addEventListener('dragleave', e => { const z = e.target.closest('.drop'); if (z && !z.contains(e.relatedTarget)) z.classList.remove('over'); });
+document.addEventListener('drop', async e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  const z = e.target.closest('.drop');
+  $$('.drop.over').forEach(x => x.classList.remove('over'));
+  const kind = z ? z.dataset.kind : S.step === 1 ? 'auto' : S.step === 4 && S.tab === 'apply' ? 'apply' : null;
+  if (!kind) { toast('자료는 1단계 자료 입력 화면에 끌어다 놓으세요.'); return; }
+  addFiles(kind, await filesFromDrop(e.dataTransfer));
+});
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal' || e.target.id === 'modal-close') $('#modal').hidden = true; });
+
+// ───────── 시작 ─────────
+loadSample();
+render();
+renderBadge();
+detectAI();
+
+</script>
+
+</body>
+</html>
